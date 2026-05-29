@@ -9,5 +9,6 @@
 		}
 	},
 	"useNx": false,
+	"npmClient": "pnpm",
 	"ignoreChanges": ["**/test/**", "**/tests/**", "**/*.md"]
 }

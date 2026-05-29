@@ -1,0 +1,15 @@
+packages:
+  - packages/*
+  - packages/actors/*
+
+# Match the reference monorepo (apify/actor-scraper): a flat node_modules so that
+# tooling assuming a hoisted layout (and the Apify base image's npm-based actor
+# builds) behave the same as before.
+nodeLinker: hoisted
+
+# pnpm 10 blocks dependency lifecycle (postinstall) scripts unless allow-listed.
+# Keep this list minimal and evidence-based — extend only when `pnpm install`
+# reports an ignored build script we actually need.
+onlyBuiltDependencies:
+  - esbuild
+  - playwright

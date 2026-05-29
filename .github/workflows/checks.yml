@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [ master ]
 
+# Supersede in-progress runs for the same ref instead of letting them pile up
+# (mirrors apify/actor-scraper).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -16,20 +22,22 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
+        # Pinned to 22 to match the production base image
+        # (apify/actor-node-playwright-firefox:22-*) and stay inside
+        # Playwright 1.46.0's supported Node matrix (18/20/22).
         node-version: '22'
-        cache: 'npm'
 
-    - name: Install dependencies
-      run: npm ci
+    - name: Install pnpm and dependencies
+      uses: apify/actions/pnpm-install@v1.1.2
 
     - name: Build
-      run: npm run build
+      run: pnpm run build
 
     - name: Lint
-      run: npm run lint
+      run: pnpm run lint
 
-    - name: Install Playwright
-      run: npx playwright install
+    - name: Install Playwright browsers
+      run: pnpm exec playwright install
 
     - name: Test
-      run: npm run test
+      run: pnpm run test
