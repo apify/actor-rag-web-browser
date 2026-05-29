@@ -1,11 +1,16 @@
 {
 	"name": "rag-web-browser",
 	"version": "0.0.1",
+	"private": true,
 	"type": "module",
 	"description": "RAG Web Browser - run Google Search queries and extract content from the top search results.",
 	"engines": {
 		"node": ">=18.0.0"
 	},
+	"workspaces": [
+		"packages/*",
+		"packages/actors/*"
+	],
 	"dependencies": {
 		"@crawlee/memory-storage": "^3.11.1",
 		"@ghostery/adblocker-playwright": "^2.5.2",
@@ -34,7 +39,9 @@
 		"eslint-config-prettier": "^9.1.0",
 		"eslint-plugin-import": "^2.29.1",
 		"globals": "^16.0.0",
+		"lerna": "^9.0.0",
 		"tsx": "^4.6.2",
+		"turbo": "^2.6.0",
 		"typescript": "^5.3.3",
 		"typescript-eslint": "^8.29.0",
 		"vitest": "^3.0.5"
@@ -51,5 +58,6 @@
 		"postinstall": "patch-package"
 	},
 	"author": "Apify",
-	"license": "ISC"
+	"license": "ISC",
+	"packageManager": "npm@10.9.2"
 }

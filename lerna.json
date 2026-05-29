@@ -1,0 +1,13 @@
+{
+	"version": "independent",
+	"packages": ["packages/*", "packages/actors/*"],
+	"command": {
+		"version": {
+			"conventionalCommits": true,
+			"createRelease": "github",
+			"message": "chore(release): release packages [skip ci]"
+		}
+	},
+	"useNx": false,
+	"ignoreChanges": ["**/test/**", "**/tests/**", "**/*.md"]
+}

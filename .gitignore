@@ -17,3 +17,6 @@ INPUT.json
 
 # Ghostery blockers (generated during build)
 blockers/**
+
+# Turbo cache
+.turbo
