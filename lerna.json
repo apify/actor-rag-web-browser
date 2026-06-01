@@ -1,6 +1,6 @@
 {
 	"version": "independent",
-	"packages": ["packages/*", "packages/actors/*"],
+	"packages": ["packages/*"],
 	"command": {
 		"version": {
 			"conventionalCommits": true,
