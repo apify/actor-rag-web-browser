@@ -8,7 +8,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
-import inputSchema from '../../.actor/input_schema.json' with { type: 'json' };
+import inputSchema from '../../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
 import { handleModelContextProtocol } from '../search.js';
 import type { Input } from '../types.js';
 

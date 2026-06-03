@@ -4,7 +4,7 @@ import type { CheerioCrawlerOptions, ProxyConfiguration } from 'crawlee';
 import { BrowserName, log } from 'crawlee';
 import { firefox } from 'playwright';
 
-import inputSchema from '../.actor/input_schema.json' with { type: 'json' };
+import inputSchema from '../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
 import { ContentCrawlerTypes } from './const.js';
 import { UserInputError } from './errors.js';
 import type {

@@ -4,7 +4,7 @@ import { Actor } from 'apify';
 import type { ProxyConfiguration, RequestOptions } from 'crawlee';
 import { log } from 'crawlee';
 
-import inputSchema from '../.actor/input_schema.json' with { type: 'json' };
+import inputSchema from '../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
 import type { ContentCrawlerUserData,
     ContentScraperSettings,
     CreateSearchRequestUserData,
