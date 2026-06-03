@@ -17,6 +17,8 @@ Actor.on('migrating', () => {
 
 const originalInput = await Actor.getInput<Partial<Input>>() ?? {} as Input;
 
+log.info(`Checking if the path is passed correctly as an env variable: ${process.env.ACTOR_PATH_IN_DOCKER_CONTEXT}`);
+
 if (isActorStandby()) {
     log.info('Actor is running in the STANDBY mode.');
 

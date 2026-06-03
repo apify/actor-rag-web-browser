@@ -65,6 +65,13 @@ ENV TZ=America/New_York
 # Configure Firefox policies
 ENV PLAYWRIGHT_FIREFOX_POLICIES_JSON="/home/myuser/policies.json"
 
+# Environment variable to determine which Actor should start.
+ARG ACTOR_PATH_IN_DOCKER_CONTEXT
+ENV ACTOR_PATH_IN_DOCKER_CONTEXT="${ACTOR_PATH_IN_DOCKER_CONTEXT}"
+
+# log the ACTOR_PATH_IN_DOCKER_CONTEXT variable when building the actor
+RUN echo "ACTOR_PATH_IN_DOCKER_CONTEXT=${ACTOR_PATH_IN_DOCKER_CONTEXT}"
+
 # Disable experimental feature warning from Node.js
 ENV NODE_NO_WARNINGS=1
 
