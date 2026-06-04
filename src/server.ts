@@ -5,6 +5,7 @@ import express, { type Request, type Response } from 'express';
 import { Routes } from './const.js';
 import { McpServer } from './mcp/server.js';
 import { handleSearchRequest } from './search.js';
+import { MINIACTORS } from './input.js';
 
 export function createServer(selectedMiniActor: string): express.Express {
     const app = express();
@@ -19,16 +20,31 @@ export function createServer(selectedMiniActor: string): express.Express {
         res.status(200).json({ message: `Actor is running in Standby mode. ${HELP_MESSAGE}` });
     });
 
-    app.get(Routes.SEARCH, async (req: Request, res: Response) => {
-        log.info(`Received GET message at: ${req.url}`);
-        await handleSearchRequest(req, res);
-    });
+    if (selectedMiniActor === MINIACTORS.RAG_WEB_BROWSER) {
+        app.get(Routes.SEARCH, async (req: Request, res: Response) => {
+            log.info(`Received GET message at: ${req.url}`);
+            await handleSearchRequest(req, res);
+        });
 
-    app.head(Routes.SEARCH, async (req: Request, res: Response) => {
-        log.info(`Received HEAD message at: ${req.url}`);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end();
-    });
+        app.head(Routes.SEARCH, async (req: Request, res: Response) => {
+            log.info(`Received HEAD message at: ${req.url}`);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end();
+        });
+    }
+
+    if (selectedMiniActor === MINIACTORS.URL_TO_MARKDOWN) {
+        app.get(Routes.FETCH, async (req: Request, res: Response) => {
+            log.info(`Received GET message at: ${req.url}`);
+            await handleSearchRequest(req, res);
+        });
+
+        app.head(Routes.FETCH, async (req: Request, res: Response) => {
+            log.info(`Received HEAD message at: ${req.url}`);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end();
+        });
+    }
 
     app.get(Routes.SSE, async (req: Request, res: Response) => {
         log.info(`Received GET message at: ${req.url}`);
