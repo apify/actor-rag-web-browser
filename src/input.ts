@@ -74,7 +74,7 @@ async function processInputInternal(
         input = processedRagWebBrowserInput.validatedRagBrowserInput;
         searchCrawlerOptions = processedRagWebBrowserInput.searchCrawlerOptions;
     } else if (selectedMiniActor === MINIACTORS.URL_TO_MARKDOWN) {
-        input = await processUrlToMarkdownInput(originalInput as Partial<UrlToMarkdownInput>);
+        input = await processUrlToMarkdownInput(originalInput as Partial<UrlToMarkdownInput>, standbyInit);
     } else {
         log.warning('The ACTOR_PATH_IN_DOCKER_CONTEXT environment variable is not set to a known value. Please report to the developers.');
         throw await Actor.fail();
@@ -164,12 +164,12 @@ async function processRagWebBrowserInput(input: Partial<RagWebBrowserInput>, sta
     /* eslint-enable no-param-reassign */
 }
 
-async function processUrlToMarkdownInput(input: Partial<UrlToMarkdownInput>): Promise<UrlToMarkdownInput> {
-    if (!input.url) {
+async function processUrlToMarkdownInput(input: Partial<UrlToMarkdownInput>, standbyInit: boolean): Promise<UrlToMarkdownInput> {
+    if (!input.url && !standbyInit) {
         throw new UserInputError('The `url` parameter must be provided and non-empty.');
     }
-    const interpretedUrl = interpretAsUrl(input.url);
-    if (!interpretedUrl) {
+    const interpretedUrl = interpretAsUrl(input.url!);
+    if (!interpretedUrl && !standbyInit) {
         throw new UserInputError('The `url` parameter must be a valid URL or a string that can be interpreted as a URL.');
     }
     // We default to the only supported output format for this mini-actor, no choice for the user
