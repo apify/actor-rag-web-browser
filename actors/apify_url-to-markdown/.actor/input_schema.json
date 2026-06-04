@@ -22,23 +22,6 @@
             "unit": "seconds",
             "editor": "hidden"
         },
-        "serpProxyGroup": {
-            "title": "SERP proxy group",
-            "type": "string",
-            "description": "Enables overriding the default Apify Proxy group used for fetching Google Search results.",
-            "editor": "select",
-            "default": "GOOGLE_SERP",
-            "enum": ["GOOGLE_SERP", "SHADER"],
-            "sectionCaption": "Google Search scraping settings"
-        },
-        "serpMaxRetries": {
-            "title": "SERP max retries",
-            "type": "integer",
-            "description": "The maximum number of times the Actor will retry fetching the Google Search results on error. If the last attempt fails, the entire request fails.",
-            "minimum": 0,
-            "maximum": 5,
-            "default": 2
-        },
         "proxyConfiguration": {
             "title": "Proxy configuration",
             "type": "object",
