@@ -2,7 +2,7 @@ import { Actor } from 'apify';
 import { log } from 'crawlee';
 
 import { createAndStartContentCrawler, createAndStartSearchCrawler } from './crawlers.js';
-import { processInput, processStandbyInput } from './input.js';
+import { MINIACTORS, processInput, processStandbyInput } from './input.js';
 import { addTimeoutToAllResponses } from './responses.js';
 import { handleSearchNormalMode } from './search.js';
 import { createServer } from './server.js';
@@ -17,8 +17,6 @@ Actor.on('migrating', () => {
 
 const originalInput = await Actor.getInput<Partial<Input>>() ?? {} as Input;
 
-log.info(`Checking if the path is passed correctly as an env variable: ${process.env.ACTOR_PATH_IN_DOCKER_CONTEXT}`);
-
 if (isActorStandby()) {
     log.info('Actor is running in the STANDBY mode.');
 
@@ -30,6 +28,7 @@ if (isActorStandby()) {
         searchCrawlerOptions,
         contentCrawlerOptions,
         contentScraperSettings,
+        selectedMiniActor,
     } = await processStandbyInput(originalInput);
 
     log.info(`Loaded input: ${JSON.stringify(input)},
@@ -42,7 +41,9 @@ if (isActorStandby()) {
 
     app.listen(port, async () => {
         const promises: Promise<unknown>[] = [];
-        promises.push(createAndStartSearchCrawler(searchCrawlerOptions));
+        if (selectedMiniActor === MINIACTORS.RAG_WEB_BROWSER) {
+            promises.push(createAndStartSearchCrawler(searchCrawlerOptions));
+        }
         for (const settings of contentCrawlerOptions) {
             promises.push(createAndStartContentCrawler(settings));
         }
@@ -58,6 +59,7 @@ if (isActorStandby()) {
         searchCrawlerOptions,
         contentCrawlerOptions,
         contentScraperSettings,
+        selectedMiniActor,
     } = await processInput(originalInput);
 
     log.info(`Loaded input: ${JSON.stringify(input)},
@@ -68,7 +70,7 @@ if (isActorStandby()) {
 
     let stats = { requestsFinished: 0, requestsFailed: 0 };
     try {
-        stats = await handleSearchNormalMode(input, searchCrawlerOptions, contentCrawlerOptions, contentScraperSettings);
+        stats = await handleSearchNormalMode(input, searchCrawlerOptions, contentCrawlerOptions, contentScraperSettings, selectedMiniActor);
     } catch (e) {
         const error = e as Error;
         await Actor.fail(error.message as string);

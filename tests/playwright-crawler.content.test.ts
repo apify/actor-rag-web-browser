@@ -70,7 +70,6 @@ describe('Playwright Crawler Content Tests', () => {
             {
                 debugMode: false,
                 outputFormats: ['text'],
-                readableTextCharThreshold: 50,
                 maxHtmlCharsToProcess: 100000,
                 dynamicContentWaitSecs: 20,
             },

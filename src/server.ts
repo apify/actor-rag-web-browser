@@ -12,7 +12,7 @@ export function createServer(): express.Express {
     let transport: SSEServerTransport;
 
     const HELP_MESSAGE = `Send a GET request to ${process.env.ACTOR_STANDBY_URL}/search?query=hello+world`
-        + ` or to ${process.env.ACTOR_STANDBY_URL}/messages to use Model context protocol.`;
+        + ` or to ${process.env.ACTOR_STANDBY_URL}/message to use Model context protocol.`;
 
     app.get('/', async (req, res) => {
         log.info(`Received GET message at: ${req.url}`);

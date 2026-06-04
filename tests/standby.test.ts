@@ -18,6 +18,7 @@ describe('Standby RAG tests', () => {
     let testServer: Server;
     const testServerPort = 3042;
     const baseUrl = `http://localhost:${testServerPort}`;
+    process.env.ACTOR_PATH_IN_DOCKER_CONTEXT = 'actors/apify_rag-web-browser';
 
     beforeAll(async () => {
         testServer = startTestServer(testServerPort);

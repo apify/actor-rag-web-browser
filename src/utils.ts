@@ -5,13 +5,15 @@ import type { ProxyConfiguration, RequestOptions } from 'crawlee';
 import { log } from 'crawlee';
 
 import inputSchema from '../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
-import type { ContentCrawlerUserData,
+import type {
+    ContentCrawlerUserData,
     ContentScraperSettings,
     CreateSearchRequestUserData,
     Input,
     OrganicResult, OutputFormats,
     SearchCrawlerUserData,
-    TimeMeasure } from './types.js';
+    TimeMeasure,
+} from './types.js';
 
 export function isActorStandby(): boolean {
     return Actor.getEnv().metaOrigin === 'STANDBY';
@@ -23,7 +25,7 @@ export function isActorStandby(): boolean {
 export function parseParameters(url: string): Partial<Input> {
     const params = parse(url.slice(1));
 
-    type SchemaKey = keyof typeof inputSchema.properties;
+    type SchemaKey = keyof Input;
 
     const parsedInput: Partial<Input> = {};
     for (const [key, value] of Object.entries(params)) {
