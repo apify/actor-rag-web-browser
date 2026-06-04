@@ -37,7 +37,7 @@ if (isActorStandby()) {
         contentScraperSettings ${JSON.stringify(contentScraperSettings)}
     `);
 
-    const app = createServer();
+    const app = createServer(selectedMiniActor!);
 
     app.listen(port, async () => {
         const promises: Promise<unknown>[] = [];

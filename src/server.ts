@@ -3,12 +3,12 @@ import { log } from 'crawlee';
 import express, { type Request, type Response } from 'express';
 
 import { Routes } from './const.js';
-import { RagWebBrowserServer } from './mcp/server.js';
+import { McpServer } from './mcp/server.js';
 import { handleSearchRequest } from './search.js';
 
-export function createServer(): express.Express {
+export function createServer(selectedMiniActor: string): express.Express {
     const app = express();
-    const mcpServer = new RagWebBrowserServer();
+    const mcpServer = new McpServer(selectedMiniActor);
     let transport: SSEServerTransport;
 
     const HELP_MESSAGE = `Send a GET request to ${process.env.ACTOR_STANDBY_URL}/search?query=hello+world`
