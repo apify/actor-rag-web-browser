@@ -4,7 +4,8 @@ import { Actor } from 'apify';
 import type { ProxyConfiguration, RequestOptions } from 'crawlee';
 import { log } from 'crawlee';
 
-import inputSchema from '../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
+import ragWebBrowserInputSchema from '../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
+import urlToMarkdownInputSchema from '../actors/apify_url-to-markdown/.actor/input_schema.json' with { type: 'json' };
 import type {
     ContentCrawlerUserData,
     ContentScraperSettings,
@@ -14,6 +15,13 @@ import type {
     SearchCrawlerUserData,
     TimeMeasure,
 } from './types.js';
+
+const inputSchema = {
+    properties: {
+        ...ragWebBrowserInputSchema.properties,
+        ...urlToMarkdownInputSchema.properties,
+    },
+};
 
 export function isActorStandby(): boolean {
     return Actor.getEnv().metaOrigin === 'STANDBY';
