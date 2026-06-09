@@ -6,6 +6,6 @@
     "version": "1.0",
     "input": "./input_schema.json",
     "dockerContextDir": "../../..",
-    "changelog": "../../../CHANGELOG.md",
+    "changelog": "../CHANGELOG.md",
     "dockerfile": "../../../Dockerfile"
 }
