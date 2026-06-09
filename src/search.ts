@@ -5,7 +5,8 @@ import { type CheerioCrawlerOptions, log } from 'crawlee';
 import { PLAYWRIGHT_REQUEST_TIMEOUT_NORMAL_MODE_SECS, Routes } from './const.js';
 import { addContentCrawlRequest, addSearchRequest, createAndStartContentCrawler, createAndStartSearchCrawler } from './crawlers.js';
 import { UserInputError } from './errors.js';
-import { MINIACTORS, processInput } from './input.js';
+import { processInput } from './input.js';
+import { getMiniActor } from './mini-actors.js';
 import { createResponsePromise } from './responses.js';
 import type { ContentCrawlerOptions, ContentScraperSettings, Input, Output, RagWebBrowserInput, UrlToMarkdownInput } from './types.js';
 import {
@@ -27,9 +28,8 @@ function prepareRequest(
     searchCrawlerOptions: CheerioCrawlerOptions,
     contentCrawlerKey: string,
     contentScraperSettings: ContentScraperSettings,
-    selectedMiniActor: typeof MINIACTORS[keyof typeof MINIACTORS],
 ) {
-    if (selectedMiniActor === MINIACTORS.URL_TO_MARKDOWN) {
+    if (!getMiniActor().runsSearch) {
         const responseId = randomId();
         const { url } = (input as Input & UrlToMarkdownInput);
         const req = createRequest(
@@ -82,7 +82,6 @@ async function runSearchProcess(params: Partial<Input>): Promise<Output[]> {
         searchCrawlerOptions,
         contentCrawlerOptions,
         contentScraperSettings,
-        selectedMiniActor,
     } = await processInput(params);
 
     // Set keepAlive to true to find the correct crawlers
@@ -96,7 +95,6 @@ async function runSearchProcess(params: Partial<Input>): Promise<Output[]> {
         searchCrawlerOptions,
         contentCrawlerKey,
         contentScraperSettings,
-        selectedMiniActor,
     );
 
     // Create a promise that resolves when all requests are processed
@@ -104,7 +102,7 @@ async function runSearchProcess(params: Partial<Input>): Promise<Output[]> {
 
     if (isUrl) {
         // If input is a direct URL, skip the search crawler
-        if (selectedMiniActor === MINIACTORS.RAG_WEB_BROWSER) {
+        if (getMiniActor().runsSearch) {
             const { query } = (input as Input & RagWebBrowserInput);
             log.info(`Skipping Google Search query as "${query}" is a valid URL`);
         }
@@ -164,8 +162,6 @@ export async function handleSearchNormalMode(
     searchCrawlerOptions: CheerioCrawlerOptions,
     contentCrawlerOptions: ContentCrawlerOptions,
     contentScraperSettings: ContentScraperSettings,
-    selectedMiniActor: typeof MINIACTORS[keyof typeof MINIACTORS],
-
 ) {
     /* eslint-disable no-param-reassign */
     const startedTime = Date.now();
@@ -181,10 +177,9 @@ export async function handleSearchNormalMode(
         searchCrawlerOptions,
         contentCrawlerKey,
         contentScraperSettings,
-        selectedMiniActor,
     );
     if (isUrl) {
-        if (selectedMiniActor === MINIACTORS.RAG_WEB_BROWSER) {
+        if (getMiniActor().runsSearch) {
             // If the input query is a URL, we don't need to run the search crawler
             const { query } = (input as Input & RagWebBrowserInput);
             log.info(`Skipping Google Search query as "${query}" is a valid URL`);

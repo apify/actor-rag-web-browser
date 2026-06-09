@@ -7,6 +7,7 @@ import { firefox } from 'playwright';
 import ragWebBrowserInputSchema from '../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
 import { ContentCrawlerTypes } from './const.js';
 import { UserInputError } from './errors.js';
+import { getMiniActor } from './mini-actors.js';
 import type {
     ContentCrawlerOptions,
     ContentScraperSettings,
@@ -19,18 +20,12 @@ import type {
 } from './types.js';
 import { interpretAsUrl } from './utils.js';
 
-export const MINIACTORS = {
-    RAG_WEB_BROWSER: 'apify_rag-web-browser',
-    URL_TO_MARKDOWN: 'apify_url-to-markdown',
-};
-
 /**
  * Processes the input and returns an array of crawler settings. This is ideal for startup of STANDBY mode
  * because it makes it simple to start all crawlers at once.
  */
 export async function processStandbyInput(originalInput: Partial<Input>) {
-    const selectedMiniActor = process.env.ACTOR_PATH_IN_DOCKER_CONTEXT?.split('/')[1];
-    const { input, searchCrawlerOptions, contentScraperSettings } = await processInputInternal(originalInput, selectedMiniActor, true);
+    const { input, searchCrawlerOptions, contentScraperSettings } = await processInputInternal(originalInput, true);
 
     const proxy = await Actor.createProxyConfiguration(input.proxyConfiguration);
     const contentCrawlerOptions: ContentCrawlerOptions[] = [
@@ -38,22 +33,21 @@ export async function processStandbyInput(originalInput: Partial<Input>) {
         createCheerioCrawlerOptions(input, proxy),
     ];
 
-    return { input, searchCrawlerOptions, contentCrawlerOptions, contentScraperSettings, selectedMiniActor };
+    return { input, searchCrawlerOptions, contentCrawlerOptions, contentScraperSettings };
 }
 
 /**
  * Processes the input and returns the settings for the crawler.
  */
 export async function processInput(originalInput: Partial<Input>) {
-    const selectedMiniActor = process.env.ACTOR_PATH_IN_DOCKER_CONTEXT?.split('/')[1];
-    const { input, searchCrawlerOptions, contentScraperSettings } = await processInputInternal(originalInput, selectedMiniActor);
+    const { input, searchCrawlerOptions, contentScraperSettings } = await processInputInternal(originalInput);
 
     const proxy = await Actor.createProxyConfiguration(input.proxyConfiguration);
     const contentCrawlerOptions: ContentCrawlerOptions = input.scrapingTool === 'raw-http'
         ? createCheerioCrawlerOptions(input, proxy, false)
         : createPlaywrightCrawlerOptions(input, proxy, false);
 
-    return { input, searchCrawlerOptions, contentCrawlerOptions, contentScraperSettings, selectedMiniActor: selectedMiniActor! };
+    return { input, searchCrawlerOptions, contentCrawlerOptions, contentScraperSettings };
 }
 
 /**
@@ -61,23 +55,19 @@ export async function processInput(originalInput: Partial<Input>) {
  */
 async function processInputInternal(
     originalInput: Partial<Input>,
-    selectedMiniActor: typeof MINIACTORS[keyof typeof MINIACTORS] | undefined,
     standbyInit = false,
 ) {
-    // const input = { ...defaults, ...originalInput } as Input;
+    const miniActor = getMiniActor();
     let input: Input;
     let searchCrawlerOptions: CheerioCrawlerOptions = {};
 
-    if (selectedMiniActor === MINIACTORS.RAG_WEB_BROWSER) {
+    if (miniActor.runsSearch) {
         const processedRagWebBrowserInput = await processRagWebBrowserInput(
             originalInput as Partial<RagWebBrowserInput>, standbyInit);
         input = processedRagWebBrowserInput.validatedRagBrowserInput;
         searchCrawlerOptions = processedRagWebBrowserInput.searchCrawlerOptions;
-    } else if (selectedMiniActor === MINIACTORS.URL_TO_MARKDOWN) {
-        input = await processUrlToMarkdownInput(originalInput as Partial<UrlToMarkdownInput>, standbyInit);
     } else {
-        log.warning('The ACTOR_PATH_IN_DOCKER_CONTEXT environment variable is not set to a known value. Please report to the developers.');
-        throw await Actor.fail();
+        input = await processUrlToMarkdownInput(originalInput as Partial<UrlToMarkdownInput>, standbyInit);
     }
 
     const {

@@ -4,32 +4,17 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
-import ragWebBrowserInputSchema from '../../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
-import urlToMarkdownInputSchema from '../../actors/apify_url-to-markdown/.actor/input_schema.json' with { type: 'json' };
-import { MINIACTORS } from '../input.js';
+import { getMiniActor, type InputSchema } from '../mini-actors.js';
 import { handleModelContextProtocol } from '../search.js';
 import type { Input } from '../types.js';
-
-type InputSchema = typeof ragWebBrowserInputSchema | typeof urlToMarkdownInputSchema;
-
-const TOOL_CONFIGS: Record<string, { inputSchema: InputSchema; serverName: string }> = {
-    [MINIACTORS.RAG_WEB_BROWSER]: {
-        inputSchema: ragWebBrowserInputSchema,
-        serverName: 'mcp-server-rag-web-browser',
-    },
-    [MINIACTORS.URL_TO_MARKDOWN]: {
-        inputSchema: urlToMarkdownInputSchema,
-        serverName: 'mcp-server-url-to-markdown',
-    },
-};
 
 export class McpServer {
     private server: Server;
     private toolName: string;
 
-    constructor(selectedMiniActor: string) {
-        const config = TOOL_CONFIGS[selectedMiniActor] ?? TOOL_CONFIGS[MINIACTORS.RAG_WEB_BROWSER];
-        const { inputSchema, serverName } = config;
+    constructor() {
+        const miniActor = getMiniActor();
+        const { inputSchema, mcpServerName: serverName } = miniActor;
         this.toolName = inputSchema.title.toLowerCase().replace(/ /g, '-');
 
         this.server = new Server(

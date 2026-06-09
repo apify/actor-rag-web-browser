@@ -26,7 +26,6 @@ describe('Standby RAG tests', () => {
         const {
             searchCrawlerOptions,
             contentCrawlerOptions,
-            selectedMiniActor,
         } = await processStandbyInput({
             scrapingTool: 'raw-http',
         });
@@ -40,7 +39,7 @@ describe('Standby RAG tests', () => {
             await Promise.all(promises);
         };
 
-        const app = createServer(selectedMiniActor!);
+        const app = createServer();
         browserServer = app.listen(browserServerPort, startCrawlers);
     });
 

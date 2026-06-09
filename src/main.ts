@@ -2,7 +2,8 @@ import { Actor } from 'apify';
 import { log } from 'crawlee';
 
 import { createAndStartContentCrawler, createAndStartSearchCrawler } from './crawlers.js';
-import { MINIACTORS, processInput, processStandbyInput } from './input.js';
+import { processInput, processStandbyInput } from './input.js';
+import { getMiniActor } from './mini-actors.js';
 import { addTimeoutToAllResponses } from './responses.js';
 import { handleSearchNormalMode } from './search.js';
 import { createServer } from './server.js';
@@ -28,7 +29,6 @@ if (isActorStandby()) {
         searchCrawlerOptions,
         contentCrawlerOptions,
         contentScraperSettings,
-        selectedMiniActor,
     } = await processStandbyInput(originalInput);
 
     log.info(`Loaded input: ${JSON.stringify(input)},
@@ -37,11 +37,11 @@ if (isActorStandby()) {
         contentScraperSettings ${JSON.stringify(contentScraperSettings)}
     `);
 
-    const app = createServer(selectedMiniActor!);
+    const app = createServer();
 
     app.listen(port, async () => {
         const promises: Promise<unknown>[] = [];
-        if (selectedMiniActor === MINIACTORS.RAG_WEB_BROWSER) {
+        if (getMiniActor().runsSearch) {
             promises.push(createAndStartSearchCrawler(searchCrawlerOptions));
         }
         for (const settings of contentCrawlerOptions) {
@@ -59,7 +59,6 @@ if (isActorStandby()) {
         searchCrawlerOptions,
         contentCrawlerOptions,
         contentScraperSettings,
-        selectedMiniActor,
     } = await processInput(originalInput);
 
     log.info(`Loaded input: ${JSON.stringify(input)},
@@ -70,7 +69,7 @@ if (isActorStandby()) {
 
     let stats = { requestsFinished: 0, requestsFailed: 0 };
     try {
-        stats = await handleSearchNormalMode(input, searchCrawlerOptions, contentCrawlerOptions, contentScraperSettings, selectedMiniActor);
+        stats = await handleSearchNormalMode(input, searchCrawlerOptions, contentCrawlerOptions, contentScraperSettings);
     } catch (e) {
         const error = e as Error;
         await Actor.fail(error.message as string);
