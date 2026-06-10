@@ -18,7 +18,7 @@ describe('Standby RAG tests', () => {
     let testServer: Server;
     const testServerPort = 3042;
     const baseUrl = `http://localhost:${testServerPort}`;
-    process.env.ACTOR_FULL_NAME = 'apify_rag-web-browser';
+    process.env.ACTOR_FULL_NAME = 'apify/rag-web-browser';
 
     beforeAll(async () => {
         testServer = startTestServer(testServerPort);

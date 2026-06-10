@@ -17,7 +17,7 @@ export interface MiniActor {
 
 const MINI_ACTORS: Record<string, MiniActor> = {
     'rag-web-browser': {
-        name: 'apify_rag-web-browser',
+        name: 'rag-web-browser',
         runsSearch: true,
         inputSchema: ragWebBrowserInputSchema,
         mcpServerName: 'mcp-server-rag-web-browser',
@@ -25,7 +25,7 @@ const MINI_ACTORS: Record<string, MiniActor> = {
         helpRoute: '/search?query=hello+world',
     },
     'url-to-markdown': {
-        name: 'apify_url-to-markdown',
+        name: 'url-to-markdown',
         runsSearch: false,
         inputSchema: urlToMarkdownInputSchema,
         mcpServerName: 'mcp-server-url-to-markdown',

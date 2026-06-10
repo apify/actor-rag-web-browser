@@ -13,6 +13,7 @@ describe('Playwright Crawler Content Tests', () => {
     let testServer: Server;
     const testServerPort = 3041;
     const baseUrl = `http://localhost:${testServerPort}`;
+    process.env.ACTOR_FULL_NAME = 'apify/rag-web-browser';
 
     // Start the test server before all tests
     beforeAll(async () => {

@@ -2,8 +2,9 @@ import { readFile } from 'node:fs/promises';
 
 import { MemoryStorage } from '@crawlee/memory-storage';
 import { PlaywrightBlocker } from '@ghostery/adblocker-playwright';
-import { RequestQueue } from 'apify';
-import { type CheerioAPI,
+import { Actor, RequestQueue } from 'apify';
+import {
+    type CheerioAPI,
     CheerioCrawler,
     type CheerioCrawlerOptions,
     type CheerioCrawlingContext,
@@ -11,10 +12,12 @@ import { type CheerioAPI,
     PlaywrightCrawler,
     type PlaywrightCrawlerOptions,
     type PlaywrightCrawlingContext,
-    type RequestOptions } from 'crawlee';
+    type RequestOptions,
+} from 'crawlee';
 
 import { ContentCrawlerTypes, GOOGLE_STANDARD_RESULTS_PER_PAGE } from './const.js';
 import { deduplicateResults, scrapeOrganicResults } from './google-search/google-extractors-urls.js';
+import { getMiniActor } from './mini-actors.js';
 import { failedRequestHandler, requestHandlerCheerio, requestHandlerPlaywright } from './request-handler.js';
 import { addEmptyResultToResponse, sendResponseError } from './responses.js';
 import type { ContentCrawlerOptions, ContentCrawlerUserData, SearchCrawlerUserData } from './types.js';
@@ -203,6 +206,11 @@ export async function createAndStartContentCrawler(
     return { key, crawler };
 }
 
+const URL_TO_MARKDOWN_PPE_EVENTS = {
+    RAW_HTTP: 'raw-http-result',
+    PLAYWRIGHT: 'playwright-result',
+};
+
 async function createPlaywrightContentCrawler(
     crawlerOptions: PlaywrightCrawlerOptions,
     key: string,
@@ -215,8 +223,12 @@ async function createPlaywrightContentCrawler(
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
         requestHandler: (async (context) => {
             await requestHandlerPlaywright(context as unknown as PlaywrightCrawlingContext<ContentCrawlerUserData>, blocker);
+            if (getMiniActor().name === 'url-to-markdown') await Actor.charge({ eventName: URL_TO_MARKDOWN_PPE_EVENTS.PLAYWRIGHT });
         }),
-        failedRequestHandler: async ({ request }, err) => failedRequestHandler(request, err, ContentCrawlerTypes.PLAYWRIGHT),
+        failedRequestHandler: async ({ request }, err) => {
+            await failedRequestHandler(request, err, ContentCrawlerTypes.PLAYWRIGHT);
+            if (getMiniActor().name === 'url-to-markdown') await Actor.charge({ eventName: URL_TO_MARKDOWN_PPE_EVENTS.PLAYWRIGHT });
+        },
     });
 }
 
@@ -232,8 +244,12 @@ async function createCheerioContentCrawler(
         requestHandler: (async (context) => {
             await requestHandlerCheerio(context as unknown as CheerioCrawlingContext<ContentCrawlerUserData>,
             );
+            if (getMiniActor().name === 'url-to-markdown') await Actor.charge({ eventName: URL_TO_MARKDOWN_PPE_EVENTS.RAW_HTTP });
         }),
-        failedRequestHandler: async ({ request }, err) => failedRequestHandler(request, err, ContentCrawlerTypes.CHEERIO),
+        failedRequestHandler: async ({ request }, err) => {
+            await failedRequestHandler(request, err, ContentCrawlerTypes.CHEERIO);
+            if (getMiniActor().name === 'url-to-markdown') await Actor.charge({ eventName: URL_TO_MARKDOWN_PPE_EVENTS.RAW_HTTP });
+        },
     });
 }
 
