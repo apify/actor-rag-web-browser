@@ -10,7 +10,7 @@
                 "description": "Enter the URL of a specific web page to extract its content in Markdown format.",
                 "prefill": "https://www.example.com",
                 "editor": "textfield",
-                "pattern": "[^\\s]+"
+                "pattern": "^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$"
             },
             "scrapingTool": {
                 "title": "Select a scraping tool",
