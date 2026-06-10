@@ -197,7 +197,7 @@ export async function createAndStartContentCrawler(
         crawler.run().then(
             () => log.warning(`Crawler ${crawlerType} has finished`),
             // eslint-disable-next-line @typescript-eslint/no-empty-function
-            () => {},
+            () => { },
         );
         log.info(`Crawler ${crawlerType} has started 💪🏼`);
     }
@@ -223,11 +223,11 @@ async function createPlaywrightContentCrawler(
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
         requestHandler: (async (context) => {
             await requestHandlerPlaywright(context as unknown as PlaywrightCrawlingContext<ContentCrawlerUserData>, blocker);
-            if (getMiniActor().name === 'url-to-markdown') await Actor.charge({ eventName: URL_TO_MARKDOWN_PPE_EVENTS.PLAYWRIGHT });
+            await maybeCharge(ContentCrawlerTypes.PLAYWRIGHT);
         }),
         failedRequestHandler: async ({ request }, err) => {
             await failedRequestHandler(request, err, ContentCrawlerTypes.PLAYWRIGHT);
-            if (getMiniActor().name === 'url-to-markdown') await Actor.charge({ eventName: URL_TO_MARKDOWN_PPE_EVENTS.PLAYWRIGHT });
+            await maybeCharge(ContentCrawlerTypes.PLAYWRIGHT);
         },
     });
 }
@@ -244,13 +244,26 @@ async function createCheerioContentCrawler(
         requestHandler: (async (context) => {
             await requestHandlerCheerio(context as unknown as CheerioCrawlingContext<ContentCrawlerUserData>,
             );
-            if (getMiniActor().name === 'url-to-markdown') await Actor.charge({ eventName: URL_TO_MARKDOWN_PPE_EVENTS.RAW_HTTP });
+            await maybeCharge(ContentCrawlerTypes.CHEERIO);
         }),
         failedRequestHandler: async ({ request }, err) => {
             await failedRequestHandler(request, err, ContentCrawlerTypes.CHEERIO);
-            if (getMiniActor().name === 'url-to-markdown') await Actor.charge({ eventName: URL_TO_MARKDOWN_PPE_EVENTS.RAW_HTTP });
+            await maybeCharge(ContentCrawlerTypes.CHEERIO);
         },
     });
+}
+
+async function maybeCharge(crawlerType: ContentCrawlerTypes) {
+    const eventName = crawlerType === ContentCrawlerTypes.PLAYWRIGHT
+        ? URL_TO_MARKDOWN_PPE_EVENTS.PLAYWRIGHT
+        : URL_TO_MARKDOWN_PPE_EVENTS.RAW_HTTP;
+    try {
+        if (getMiniActor().name === 'url-to-markdown') {
+            await Actor.charge({ eventName });
+        }
+    } catch (err) {
+        log.error(`Failed to charge for ${eventName} event: ${err instanceof Error ? err.message : String(err)}`);
+    }
 }
 
 /**
