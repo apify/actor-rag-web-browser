@@ -31,7 +31,7 @@ if (isActorStandby()) {
         contentScraperSettings,
     } = await processStandbyInput(originalInput);
 
-    log.info(`Loaded input: ${JSON.stringify(input)},
+    log.debug(`Loaded input: ${JSON.stringify(input)},
         cheerioCrawlerOptions: ${JSON.stringify(searchCrawlerOptions)},
         contentCrawlerOptions: ${JSON.stringify(contentCrawlerOptions)},
         contentScraperSettings ${JSON.stringify(contentScraperSettings)}
@@ -60,7 +60,7 @@ if (isActorStandby()) {
 
     const { input, searchCrawlerOptions, contentCrawlerOptions, contentScraperSettings } = processedInput;
 
-    log.info(`Loaded input: ${JSON.stringify(input)},
+    log.debug(`Loaded input: ${JSON.stringify(input)},
         cheerioCrawlerOptions: ${JSON.stringify(searchCrawlerOptions)},
         contentCrawlerOptions: ${JSON.stringify(contentCrawlerOptions)},
         contentScraperSettings ${JSON.stringify(contentScraperSettings)}
