@@ -54,12 +54,11 @@ if (isActorStandby()) {
 } else {
     log.info('Actor is running in the NORMAL mode.');
 
-    const {
-        input,
-        searchCrawlerOptions,
-        contentCrawlerOptions,
-        contentScraperSettings,
-    } = await processInput(originalInput);
+    const processedInput = await processInput(originalInput).catch(async (e: Error) => {
+        throw await Actor.fail(`Input processing failed: ${e.message}`);
+    });
+
+    const { input, searchCrawlerOptions, contentCrawlerOptions, contentScraperSettings } = processedInput;
 
     log.info(`Loaded input: ${JSON.stringify(input)},
         cheerioCrawlerOptions: ${JSON.stringify(searchCrawlerOptions)},
