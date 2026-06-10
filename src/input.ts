@@ -139,6 +139,29 @@ async function processRagWebBrowserInput(input: Partial<RagWebBrowserInput>, sta
         'serpMaxRetries',
     );
 
+    // Request timeout seconds
+    input.requestTimeoutSecs = validateRange(
+        input.requestTimeoutSecs,
+        ragWebBrowserInputSchema.properties.requestTimeoutSecs.minimum,
+        ragWebBrowserInputSchema.properties.requestTimeoutSecs.maximum,
+        ragWebBrowserInputSchema.properties.requestTimeoutSecs.default,
+        'requestTimeoutSecs',
+    );
+
+    // Remove cookie warnings
+    if (input.removeCookieWarnings === undefined) {
+        input.removeCookieWarnings = ragWebBrowserInputSchema.properties.removeCookieWarnings.default;
+    }
+
+    // Max request retries
+    input.maxRequestRetries = validateRange(
+        input.maxRequestRetries,
+        ragWebBrowserInputSchema.properties.maxRequestRetries.minimum,
+        ragWebBrowserInputSchema.properties.maxRequestRetries.maximum,
+        ragWebBrowserInputSchema.properties.maxRequestRetries.default,
+        'maxRequestRetries',
+    );
+
     const proxySearch = await Actor.createProxyConfiguration({ groups: [input.serpProxyGroup] });
     const searchCrawlerOptions: CheerioCrawlerOptions = {
         keepAlive: standbyInit,
@@ -165,6 +188,18 @@ async function processUrlToMarkdownInput(input: Partial<UrlToMarkdownInput>, sta
     // We default to the only supported output format for this mini-actor, no choice for the user
     // eslint-disable-next-line no-param-reassign
     input.outputFormats = ['markdown'];
+
+    // We default to removing cookie warnings. TODO: default for RAG and remove from input schema as well?
+    // eslint-disable-next-line no-param-reassign
+    input.removeCookieWarnings = true;
+
+    // We default to a specific request timeout. TODO: default for RAG and remove from input schema as well?
+    // eslint-disable-next-line no-param-reassign
+    input.requestTimeoutSecs = 40;
+
+    // We default to a specific request max retries. TODO: default for RAG and remove from input schema as well?
+    // eslint-disable-next-line no-param-reassign
+    input.maxRequestRetries = 1;
 
     const validatedInput = validateAndFillInput(input) as UrlToMarkdownInput;
     return validatedInput;
@@ -231,15 +266,6 @@ function createCheerioCrawlerOptions(
 function validateAndFillInput(input: Partial<Input>): Input {
     /* eslint-disable no-param-reassign */
 
-    // Request timeout seconds
-    input.requestTimeoutSecs = validateRange(
-        input.requestTimeoutSecs,
-        ragWebBrowserInputSchema.properties.requestTimeoutSecs.minimum,
-        ragWebBrowserInputSchema.properties.requestTimeoutSecs.maximum,
-        ragWebBrowserInputSchema.properties.requestTimeoutSecs.default,
-        'requestTimeoutSecs',
-    );
-
     // Proxy configuration
     if (!input.proxyConfiguration) {
         input.proxyConfiguration = ragWebBrowserInputSchema.properties.proxyConfiguration.default as ProxyConfigurationOptions;
@@ -271,23 +297,9 @@ function validateAndFillInput(input: Partial<Input>): Input {
         'desiredConcurrency',
     );
 
-    // Max request retries
-    input.maxRequestRetries = validateRange(
-        input.maxRequestRetries,
-        ragWebBrowserInputSchema.properties.maxRequestRetries.minimum,
-        ragWebBrowserInputSchema.properties.maxRequestRetries.maximum,
-        ragWebBrowserInputSchema.properties.maxRequestRetries.default,
-        'maxRequestRetries',
-    );
-
     // Dynamic content wait seconds
-    if (!input.dynamicContentWaitSecs || input.dynamicContentWaitSecs >= input.requestTimeoutSecs) {
-        input.dynamicContentWaitSecs = Math.round(input.requestTimeoutSecs / 2);
-    }
-
-    // Remove cookie warnings
-    if (input.removeCookieWarnings === undefined) {
-        input.removeCookieWarnings = ragWebBrowserInputSchema.properties.removeCookieWarnings.default;
+    if (!input.dynamicContentWaitSecs || input.dynamicContentWaitSecs >= input.requestTimeoutSecs!) {
+        input.dynamicContentWaitSecs = Math.round(input.requestTimeoutSecs! / 2);
     }
 
     // Debug mode

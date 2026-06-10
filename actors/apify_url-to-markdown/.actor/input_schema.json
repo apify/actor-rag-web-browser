@@ -12,16 +12,6 @@
                 "editor": "textfield",
                 "pattern": "[^\\s]+"
             },
-        "requestTimeoutSecs": {
-            "title": "Request timeout",
-            "type": "integer",
-            "description": "The maximum time in seconds available for the request, including querying Google Search and scraping the target web pages. For example, OpenAI allows only [45 seconds](https://platform.openai.com/docs/actions/production#timeouts) for custom actions. If a target page loading and extraction exceeds this timeout, the corresponding page will be skipped in results to ensure at least some results are returned within the timeout. If no page is extracted within the timeout, the whole request fails.",
-            "minimum": 1,
-            "maximum": 300,
-            "default": 40,
-            "unit": "seconds",
-            "editor": "hidden"
-        },
         "proxyConfiguration": {
             "title": "Proxy configuration",
             "type": "object",
@@ -69,14 +59,6 @@
             "default": 5,
             "editor": "hidden"
         },
-        "maxRequestRetries": {
-            "title": "Target page max retries",
-            "type": "integer",
-            "description": "The maximum number of times the Actor will retry loading the target web page on error. If the last attempt fails, the page will be skipped in the results.",
-            "minimum": 0,
-            "maximum": 3,
-            "default": 1
-        },
         "dynamicContentWaitSecs": {
             "title": "Target page dynamic content timeout",
             "type": "integer",
@@ -84,17 +66,12 @@
             "default": 10,
             "unit": "seconds"
         },
-        "removeCookieWarnings": {
-            "title": "Remove cookie warnings",
-            "type": "boolean",
-            "description": "If enabled, the Actor attempts to close or remove cookie consent dialogs to improve the quality of extracted text. Note that this setting increases the latency.",
-            "default": true
-        },
         "debugMode": {
             "title": "Enable debug mode",
             "type": "boolean",
             "description": "If enabled, the Actor will store debugging information into the resulting dataset under the `debug` field.",
-            "default": false
+            "default": false,
+            "editor": "hidden"
         }
     },
     "required": ["url"]
