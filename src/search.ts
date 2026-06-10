@@ -118,12 +118,12 @@ async function runSearchProcess(params: Partial<Input>): Promise<Output[]> {
 }
 
 /**
- * Handles the search request at the /search endpoint (HTTP scenario).
+ * Handles the search request at the /search or /fetch endpoint (HTTP scenario).
  * Uses the unified runSearchProcess function and then sends an HTTP response.
  */
 export async function handleSearchRequest(request: IncomingMessage, response: ServerResponse) {
     try {
-        const params = parseParameters(request.url?.slice(Routes.SEARCH.length) ?? '');
+        const params = parseParameters(request.url?.slice(getMiniActor().route.length) ?? '');
         log.info(`Received query parameters: ${JSON.stringify(params)}`);
 
         const results = await runSearchProcess(params);
