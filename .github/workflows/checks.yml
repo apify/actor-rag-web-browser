@@ -29,7 +29,7 @@ jobs:
       run: npm run lint
 
     - name: Install Playwright
-      run: npx playwright install firefox
+      run: npx playwright install firefox --with-deps
 
     - name: Test
       run: npm run test
