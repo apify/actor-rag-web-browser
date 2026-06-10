@@ -2,9 +2,12 @@
     "actorSpecification": 1,
     "name": "url-to-markdown",
     "title": "URL to Markdown",
-    "description": "An Apify Actor that takes a URL as input and returns the content of the page in Markdown format. ",
+    "description": "An Apify Actor that takes a URL as input and returns the content of the page in Markdown format.",
     "version": "1.0",
     "input": "./input_schema.json",
+    "defaultMemoryMbytes": 1024,
+    "minMemoryMbytes": 256,
+    "maxMemoryMbytes": 32768,
     "dockerContextDir": "../../..",
     "changelog": "../CHANGELOG.md",
     "dockerfile": "../../../Dockerfile",
@@ -12,11 +15,11 @@
         "dataset": {
             "actorSpecification": 1,
             "title": "URL to Markdown",
-            "description": "Too see all scraped properties, export the whole dataset or select All fields instead of Overview.",
+            "description": "",
             "views": {
                 "overview": {
                     "title": "Overview",
-                    "description": "An view showing just basic properties for simplicity.",
+                    "description": "",
                     "transformation": {
                         "flatten": ["metadata", "searchResult"],
                         "fields": [
@@ -28,11 +31,11 @@
                         "component": "table",
                         "properties": {
                             "metadata.url": {
-                                "label": "Page URL",
-                                "format": "text"
+                                "label": "URL",
+                                "format": "link"
                             },
                             "text": {
-                                "label": "Extracted Markdown",
+                                "label": "Markdown",
                                 "format": "text"
                             }
                         }
