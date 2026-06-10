@@ -162,7 +162,7 @@ async function processRagWebBrowserInput(input: Partial<RagWebBrowserInput>, sta
         'maxRequestRetries',
     );
 
-    const proxySearch = await Actor.createProxyConfiguration({ groups: [input.serpProxyGroup] });
+    const proxySearch = await Actor.createProxyConfiguration({ groups: [input.serpProxyGroup], checkAccess: false });
     const searchCrawlerOptions: CheerioCrawlerOptions = {
         keepAlive: standbyInit,
         maxRequestRetries: input.serpMaxRetries,
