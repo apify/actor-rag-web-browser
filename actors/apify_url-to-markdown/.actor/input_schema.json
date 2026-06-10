@@ -5,29 +5,30 @@
         "schemaVersion": 1,
         "properties": {
             "url": {
-                "title": "Search term or URL",
+                "title": "URL",
                 "type": "string",
                 "description": "Enter the URL of a specific web page to extract its content in Markdown format.",
-                "prefill": "https://www.example.com",
+                "prefill": "https://apify.com",
                 "editor": "textfield",
                 "pattern": "[^\\s]+"
             },
             "scrapingTool": {
-                "title": "Select a scraping tool",
+                "title": "Scraping mode",
                 "type": "string",
-                "description": "Select a scraping tool for extracting the target web pages. The Browser tool is more powerful and can handle JavaScript heavy websites, while the Plain HTML tool can't handle JavaScript but is about two times faster.",
+                "description": "Select the scraping mode for extracting the target web pages.\n\nThe Raw HTTP mode (default) is the fastest, but can't handle JavaScript.\n\n\The Browser mode is more powerful, can handle JavaScript heavy websites, but costs more.",
                 "editor": "select",
                 "default": "raw-http",
                 "enum": [
-                    "browser-playwright",
-                    "raw-http"
+                    "raw-http",
+                    "browser-playwright"
                 ],
                 "enumTitles": [
-                    "Browser (uses Playwright)",
-                    "Raw HTTP"
+                    "Raw HTTP",
+                    "Browser ($)"
                 ]
             },
             "proxyConfiguration": {
+                "sectionCaption": "Scraping settings",
                 "title": "Proxy configuration",
                 "type": "object",
                 "description": "Apify Proxy configuration used for scraping the target web pages.",
@@ -37,8 +38,7 @@
                 "prefill": {
                     "useApifyProxy": true
                 },
-                "editor": "proxy",
-                "sectionCaption": "Target pages scraping settings"
+                "editor": "proxy"
             },
             "removeElementsCssSelector": {
                 "title": "Remove HTML elements (CSS selector)",
