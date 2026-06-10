@@ -162,6 +162,11 @@ async function processRagWebBrowserInput(input: Partial<RagWebBrowserInput>, sta
         'maxRequestRetries',
     );
 
+    // Dynamic content wait seconds
+    if (!input.dynamicContentWaitSecs || input.dynamicContentWaitSecs >= input.requestTimeoutSecs) {
+        input.dynamicContentWaitSecs = Math.round(input.requestTimeoutSecs / 2);
+    }
+
     const proxySearch = await Actor.createProxyConfiguration({ groups: [input.serpProxyGroup], checkAccess: false });
     const searchCrawlerOptions: CheerioCrawlerOptions = {
         keepAlive: standbyInit,
@@ -200,6 +205,10 @@ async function processUrlToMarkdownInput(input: Partial<UrlToMarkdownInput>, sta
     // We default to a specific request max retries. TODO: default for RAG and remove from input schema as well?
     // eslint-disable-next-line no-param-reassign
     input.maxRequestRetries = 1;
+
+    // We default to a specific dynamic content wait time. TODO: default for RAG and remove from input schema as well?
+    // eslint-disable-next-line no-param-reassign
+    input.dynamicContentWaitSecs = 10;
 
     const validatedInput = validateAndFillInput(input) as UrlToMarkdownInput;
     return validatedInput;
@@ -296,11 +305,6 @@ function validateAndFillInput(input: Partial<Input>): Input {
         ragWebBrowserInputSchema.properties.desiredConcurrency.default,
         'desiredConcurrency',
     );
-
-    // Dynamic content wait seconds
-    if (!input.dynamicContentWaitSecs || input.dynamicContentWaitSecs >= input.requestTimeoutSecs!) {
-        input.dynamicContentWaitSecs = Math.round(input.requestTimeoutSecs! / 2);
-    }
 
     // Debug mode
     if (input.debugMode === undefined) {

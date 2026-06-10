@@ -12,67 +12,68 @@
                 "editor": "textfield",
                 "pattern": "[^\\s]+"
             },
-        "proxyConfiguration": {
-            "title": "Proxy configuration",
-            "type": "object",
-            "description": "Apify Proxy configuration used for scraping the target web pages.",
-            "default": {
-                "useApifyProxy": true
+            "scrapingTool": {
+                "title": "Select a scraping tool",
+                "type": "string",
+                "description": "Select a scraping tool for extracting the target web pages. The Browser tool is more powerful and can handle JavaScript heavy websites, while the Plain HTML tool can't handle JavaScript but is about two times faster.",
+                "editor": "select",
+                "default": "raw-http",
+                "enum": [
+                    "browser-playwright",
+                    "raw-http"
+                ],
+                "enumTitles": [
+                    "Browser (uses Playwright)",
+                    "Raw HTTP"
+                ]
             },
-            "prefill": {
-                "useApifyProxy": true
+            "proxyConfiguration": {
+                "title": "Proxy configuration",
+                "type": "object",
+                "description": "Apify Proxy configuration used for scraping the target web pages.",
+                "default": {
+                    "useApifyProxy": true
+                },
+                "prefill": {
+                    "useApifyProxy": true
+                },
+                "editor": "proxy",
+                "sectionCaption": "Target pages scraping settings"
             },
-            "editor": "proxy",
-            "sectionCaption": "Target pages scraping settings"
+            "removeElementsCssSelector": {
+                "title": "Remove HTML elements (CSS selector)",
+                "type": "string",
+                "description": "A CSS selector matching HTML elements that will be removed from the DOM, before converting it to text, Markdown, or saving as HTML. This is useful to skip irrelevant page content. The value must be a valid CSS selector as accepted by the `document.querySelectorAll()` function. \n\nBy default, the Actor removes common navigation elements, headers, footers, modals, scripts, and inline image. You can disable the removal by setting this value to some non-existent CSS selector like `dummy_keep_everything`.",
+                "editor": "hidden",
+                "default": "nav, footer, script, style, noscript, svg, img[src^='data:'],\n[role=\"alert\"],\n[role=\"banner\"],\n[role=\"dialog\"],\n[role=\"alertdialog\"],\n[role=\"region\"][aria-label*=\"skip\" i],\n[aria-modal=\"true\"]",
+                "prefill": "nav, footer, script, style, noscript, svg, img[src^='data:'],\n[role=\"alert\"],\n[role=\"banner\"],\n[role=\"dialog\"],\n[role=\"alertdialog\"],\n[role=\"region\"][aria-label*=\"skip\" i],\n[aria-modal=\"true\"]"
+            },
+            "htmlTransformer": {
+                "title": "HTML transformer",
+                "type": "string",
+                "description": "Specify how to transform the HTML to extract meaningful content without any extra fluff, like navigation or modals. The HTML transformation happens after removing and clicking the DOM elements.\n\n- **None** (default) - Only removes the HTML elements specified via 'Remove HTML elements' option.\n\n- **Readable text** - Extracts the main contents of the webpage, without navigation and other fluff.",
+                "default": "none",
+                "prefill": "none",
+                "editor": "hidden"
+            },
+            "desiredConcurrency": {
+                "title": "Desired browsing concurrency",
+                "type": "integer",
+                "description": "The desired number of web browsers running in parallel. The system automatically scales the number based on the CPU and memory usage. If the initial value is `0`, the Actor picks the number automatically based on the available memory.",
+                "minimum": 0,
+                "maximum": 50,
+                "default": 5,
+                "editor": "hidden"
+            },
+            "debugMode": {
+                "title": "Enable debug mode",
+                "type": "boolean",
+                "description": "If enabled, the Actor will store debugging information into the resulting dataset under the `debug` field.",
+                "default": false,
+                "editor": "hidden"
+            }
         },
-        "scrapingTool": {
-            "title": "Select a scraping tool",
-            "type": "string",
-            "description": "Select a scraping tool for extracting the target web pages. The Browser tool is more powerful and can handle JavaScript heavy websites, while the Plain HTML tool can't handle JavaScript but is about two times faster.",
-            "editor": "select",
-            "default": "raw-http",
-            "enum": ["browser-playwright", "raw-http"],
-            "enumTitles": ["Browser (uses Playwright)", "Raw HTTP"]
-        },
-        "removeElementsCssSelector": {
-            "title": "Remove HTML elements (CSS selector)",
-            "type": "string",
-            "description": "A CSS selector matching HTML elements that will be removed from the DOM, before converting it to text, Markdown, or saving as HTML. This is useful to skip irrelevant page content. The value must be a valid CSS selector as accepted by the `document.querySelectorAll()` function. \n\nBy default, the Actor removes common navigation elements, headers, footers, modals, scripts, and inline image. You can disable the removal by setting this value to some non-existent CSS selector like `dummy_keep_everything`.",
-            "editor": "textarea",
-            "default": "nav, footer, script, style, noscript, svg, img[src^='data:'],\n[role=\"alert\"],\n[role=\"banner\"],\n[role=\"dialog\"],\n[role=\"alertdialog\"],\n[role=\"region\"][aria-label*=\"skip\" i],\n[aria-modal=\"true\"]",
-            "prefill": "nav, footer, script, style, noscript, svg, img[src^='data:'],\n[role=\"alert\"],\n[role=\"banner\"],\n[role=\"dialog\"],\n[role=\"alertdialog\"],\n[role=\"region\"][aria-label*=\"skip\" i],\n[aria-modal=\"true\"]"
-        },
-        "htmlTransformer": {
-            "title": "HTML transformer",
-            "type": "string",
-            "description": "Specify how to transform the HTML to extract meaningful content without any extra fluff, like navigation or modals. The HTML transformation happens after removing and clicking the DOM elements.\n\n- **None** (default) - Only removes the HTML elements specified via 'Remove HTML elements' option.\n\n- **Readable text** - Extracts the main contents of the webpage, without navigation and other fluff.",
-            "default": "none",
-            "prefill": "none",
-            "editor": "hidden"
-        },
-        "desiredConcurrency": {
-            "title": "Desired browsing concurrency",
-            "type": "integer",
-            "description": "The desired number of web browsers running in parallel. The system automatically scales the number based on the CPU and memory usage. If the initial value is `0`, the Actor picks the number automatically based on the available memory.",
-            "minimum": 0,
-            "maximum": 50,
-            "default": 5,
-            "editor": "hidden"
-        },
-        "dynamicContentWaitSecs": {
-            "title": "Target page dynamic content timeout",
-            "type": "integer",
-            "description": "The maximum time in seconds to wait for dynamic page content to load. The Actor considers the web page as fully loaded once this time elapses or when the network becomes idle.",
-            "default": 10,
-            "unit": "seconds"
-        },
-        "debugMode": {
-            "title": "Enable debug mode",
-            "type": "boolean",
-            "description": "If enabled, the Actor will store debugging information into the resulting dataset under the `debug` field.",
-            "default": false,
-            "editor": "hidden"
-        }
-    },
-    "required": ["url"]
-}
+        "required": [
+            "url"
+        ]
+    }
