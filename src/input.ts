@@ -232,6 +232,12 @@ function createPlaywrightCrawlerOptions(
             launchContext: {
                 launcher: firefox,
             },
+            preNavigationHooks: [
+                (_context, gotoOptions) => {
+                    // eslint-disable-next-line no-param-reassign
+                    gotoOptions.waitUntil = 'domcontentloaded';
+                },
+            ],
             browserPoolOptions: {
                 fingerprintOptions: {
                     fingerprintGeneratorOptions: {
