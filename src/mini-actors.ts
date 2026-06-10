@@ -16,7 +16,7 @@ export interface MiniActor {
 }
 
 const MINI_ACTORS: Record<string, MiniActor> = {
-    'apify_rag-web-browser': {
+    'rag-web-browser': {
         name: 'apify_rag-web-browser',
         runsSearch: true,
         inputSchema: ragWebBrowserInputSchema,
@@ -24,7 +24,7 @@ const MINI_ACTORS: Record<string, MiniActor> = {
         route: Routes.SEARCH,
         helpRoute: '/search?query=hello+world',
     },
-    'apify_url-to-markdown': {
+    'url-to-markdown': {
         name: 'apify_url-to-markdown',
         runsSearch: false,
         inputSchema: urlToMarkdownInputSchema,
@@ -35,11 +35,11 @@ const MINI_ACTORS: Record<string, MiniActor> = {
 };
 
 export function getMiniActor(): MiniActor {
-    const actorKey = process.env.ACTOR_PATH_IN_DOCKER_CONTEXT?.split('/')[1];
+    const actorKey = process.env.ACTOR_FULL_NAME?.split('/')[1];
     const miniActor = actorKey ? MINI_ACTORS[actorKey] : undefined;
 
     if (!miniActor) {
-        log.warning('The ACTOR_PATH_IN_DOCKER_CONTEXT environment variable is not set to a known value. Please report to the developers.');
+        log.warning(`The ACTOR_FULL_NAME ${process.env.ACTOR_FULL_NAME} environment variable is not set to a known value. Please report to the developers.`);
         throw new Error('Unknown mini-actor');
     }
 
