@@ -10,7 +10,7 @@
                 "description": "Enter the URL of a specific web page to extract its content in Markdown format.",
                 "prefill": "https://apify.com",
                 "editor": "textfield",
-                "pattern": "^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$"
+                "pattern": "^(https?:\\/\\/)?([\\da-z\\.-]+)\\.([a-z\\.]{2,6})([\\/\\w \\.-]*)*\\/?$"
             },
             "scrapingTool": {
                 "title": "Scraping mode",
