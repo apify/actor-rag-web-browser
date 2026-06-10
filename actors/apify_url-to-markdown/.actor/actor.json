@@ -7,5 +7,38 @@
     "input": "./input_schema.json",
     "dockerContextDir": "../../..",
     "changelog": "../CHANGELOG.md",
-    "dockerfile": "../../../Dockerfile"
+    "dockerfile": "../../../Dockerfile",
+    "storages": {
+        "dataset": {
+            "actorSpecification": 1,
+            "title": "URL to Markdown",
+            "description": "Too see all scraped properties, export the whole dataset or select All fields instead of Overview.",
+            "views": {
+                "overview": {
+                    "title": "Overview",
+                    "description": "An view showing just basic properties for simplicity.",
+                    "transformation": {
+                        "flatten": ["metadata", "searchResult"],
+                        "fields": [
+                            "metadata.url",
+                            "markdown"
+                        ]
+                    },
+                    "display": {
+                        "component": "table",
+                        "properties": {
+                            "metadata.url": {
+                                "label": "Page URL",
+                                "format": "text"
+                            },
+                            "text": {
+                                "label": "Extracted Markdown",
+                                "format": "text"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
