@@ -227,7 +227,6 @@ async function createPlaywrightContentCrawler(
         }),
         failedRequestHandler: async ({ request }, err) => {
             await failedRequestHandler(request, err, ContentCrawlerTypes.PLAYWRIGHT);
-            await maybeCharge(ContentCrawlerTypes.PLAYWRIGHT);
         },
     });
 }
@@ -248,7 +247,6 @@ async function createCheerioContentCrawler(
         }),
         failedRequestHandler: async ({ request }, err) => {
             await failedRequestHandler(request, err, ContentCrawlerTypes.CHEERIO);
-            await maybeCharge(ContentCrawlerTypes.CHEERIO);
         },
     });
 }
