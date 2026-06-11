@@ -4,7 +4,7 @@
     "properties": {
         "overview": {
             "type": "string",
-            "title": "Dataset Overview",
+            "title": "Overview",
             "template": "{{links.apiDefaultDatasetUrl}}/items?view=overview"
         }
     }
