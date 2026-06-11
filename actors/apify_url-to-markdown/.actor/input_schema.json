@@ -53,7 +53,7 @@
                 "description": "The desired number of web browsers running in parallel. The system automatically scales the number based on the CPU and memory usage. If the initial value is `0`, the Actor picks the number automatically based on the available memory.",
                 "minimum": 0,
                 "maximum": 50,
-                "default": 5,
+                "default": 1,
                 "editor": "hidden"
             },
             "debugMode": {
