@@ -1,10 +1,14 @@
 # URL to Markdown 
-Extract content from any URL and convert it into clean, LLM-ready Markdown. This is ideal for RAG pipelines, AI training data, and knowledge-base ingestion.
+Extract content from any URL and convert it into clean Markdown ready for large language models (LLMs). This is ideal for retrieval-augmented generation (RAG) pipelines, AI training data, and knowledge-base ingestion.
 
 ## How to use URL to Markdown Converter
-This Actor takes a single input: a URL you wish to convert.
+This Actor has one compulsory input: a URL you wish to convert.
 
-It will return an output with following data:
+Additionally, you can select the **Scraping mode**:
+- The Raw HTTP mode (default) is the fastest and cheapest, but can't handle JavaScript.
+- The Browser mode is more powerful and can handle JavaScript-heavy websites.
+
+It will return an output with the following data:
 - URL
 - Markdown of the page
 - Basic metadata
@@ -14,35 +18,41 @@ This Actor doesn't support pagination or crawling to discover new URLs. If you a
 ### Input example
 ```json
 {
-    "startUrls": [
-        {
-            "url": "https://apify.com"
-        },
-        {
-            "url": "https://apify.com/apify/website-content-crawler"
-        }
-    ]
+   "url": "https://apify.com",
+   "scrapingTool": "raw-http"
 }
 ```
 ### Output example
 ```json
-[
-  {
+[{
+  "crawl": {
+    "httpStatusCode": 200,
+    "httpStatusMessage": "OK",
+    "loadedAt": "2026-06-11T09:00:12.010Z",
+    "uniqueKey": "I0mexdHttr",
+    "requestStatus": "handled"
+  },
+  "metadata": {
+    "title": "Apify: Full-stack web scraping and data extraction platform",
+    "description": "Cloud platform for web scraping, browser automation, AI agents, and data for AI. Use 38,000+ ready-made tools, code templates, or order a custom solution.",
+    "languageCode": "en",
     "url": "https://apify.com",
-    "markdown": "# Apify: Full-stack web scraping and data extraction platform\n\n## Get real-time web data for your AI\n\nApify Actors scrape up-to-date web data from any website for AI apps and agents, social media monitoring, competitive intelligence, lead generation, and product research.\n\n"
-  }
-]
+    "redirectedUrl": "https://apify.com/"
+  },
+  "query": "https://apify.com",
+  "markdown": "Apify: Full-stack web scraping and data extraction platform\n\n"
+}]
 ```
 
 ## How much does URL to Markdown cost?
 
-The price per pages converted to markdown depend on your Apify Subscription:
-| Apify plan | Price per 1000 URLs |
-|------------|---------------------|
-| Free       | $6                  |
-| Starter    | $5.5                |
-| Scale      | $5.0                |
-| Business   | $4.5                |
+The price per page depends on your Apify plan and the selected mode. The table below shows the prices for 1,000 URLs:
+| Apify plan | Raw HTTP mode |Browser mode|
+|------------|---------------------|---------------------|
+| Free       | $3                 | $6                  |
+| Starter    | $2                | $5                 |
+| Scale      | $1.70                | $4                  |
+| Business   | $1.50                | $3                  |
 
 ## What are the Use cases for URL to markdown?
 
@@ -51,7 +61,7 @@ The price per pages converted to markdown depend on your Apify Subscription:
 - **Implement Retrieval** Augmented Generation (RAG)
 
 ## Integrate URL to Markdown with your AI ecosystem
-You can use [Apify platform integrations](https://docs.apify.com/integrations) to embed URL with third-party tool.
+Use [Apify platform integrations](https://docs.apify.com/integrations) to connect URL to Markdown with third-party tools.
 
 [video integrations tutorial](https://www.youtube.com/watch?v=bNACk1_S_6w)
 
