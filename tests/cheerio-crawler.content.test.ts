@@ -1,13 +1,14 @@
+import type { Server } from 'node:http';
+
 import { MemoryStorage } from '@crawlee/memory-storage';
 import { RequestQueue } from 'apify';
-import { CheerioCrawler, Configuration, log, type CheerioCrawlingContext } from 'crawlee';
-import type { Server } from 'node:http';
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { CheerioCrawler, type CheerioCrawlingContext, Configuration, log } from 'crawlee';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { startTestServer, stopTestServer } from './helpers/server';
-import { requestHandlerCheerio } from '../src/request-handler';
-import type { ContentCrawlerUserData } from '../src/types';
-import { createRequest } from '../src/utils';
+import { requestHandlerCheerio } from '../src/request-handler.js';
+import type { ContentCrawlerUserData } from '../src/types.js';
+import { createRequest } from '../src/utils.js';
+import { startTestServer, stopTestServer } from './helpers/server.js';
 
 describe('Cheerio Crawler Content Tests', () => {
     let testServer: Server;
@@ -40,7 +41,7 @@ describe('Cheerio Crawler Content Tests', () => {
 
                 expect(pushDataSpy).toHaveBeenCalledTimes(1);
                 expect(pushDataSpy).toHaveBeenCalledWith(expect.objectContaining({
-                    text: expect.stringContaining('hello world')
+                    text: expect.stringContaining('hello world'),
                 }));
                 successUrls.add(context.request.url);
             },

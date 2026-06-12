@@ -1,7 +1,8 @@
-import express from 'express';
 import fs from 'node:fs';
 import type { Server } from 'node:http';
 import path from 'node:path';
+
+import express from 'express';
 
 /**
  * Creates and returns an Express server with test routes
@@ -26,6 +27,7 @@ export function createTestServer() {
 export function startTestServer(port = 3030): Server {
     const app = createTestServer();
     return app.listen(port, () => {
+        // eslint-disable-next-line no-console
         console.log(`Test server is running on port ${port}`);
     });
 }
@@ -34,7 +36,7 @@ export function startTestServer(port = 3030): Server {
  * Stops the test server
  * @param server Server instance to stop
  */
-export function stopTestServer(server: Server): Promise<void> {
+export async function stopTestServer(server: Server): Promise<void> {
     return new Promise((resolve, reject) => {
         server.close((err) => {
             if (err) {
