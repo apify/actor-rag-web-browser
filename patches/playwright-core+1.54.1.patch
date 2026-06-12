@@ -1,0 +1,12 @@
+diff --git a/node_modules/playwright-core/lib/server/firefox/ffNetworkManager.js b/node_modules/playwright-core/lib/server/firefox/ffNetworkManager.js
+index 67017a4..075a954 100644
+--- a/node_modules/playwright-core/lib/server/firefox/ffNetworkManager.js
++++ b/node_modules/playwright-core/lib/server/firefox/ffNetworkManager.js
+@@ -51,7 +51,6 @@ class FFNetworkManager {
+   async setRequestInterception(enabled) {
+     await Promise.all([
+       this._session.send("Network.setRequestInterception", { enabled }),
+-      this._session.send("Page.setCacheDisabled", { cacheDisabled: enabled })
+     ]);
+   }
+   _onRequestWillBeSent(event) {
