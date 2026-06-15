@@ -14,17 +14,9 @@ export type OutputFormats = 'text' | 'markdown' | 'html';
 export type SERPProxyGroup = 'GOOGLE_SERP' | 'SHADER';
 export type ScrapingTool = 'browser-playwright' | 'raw-http';
 
-export type Input = {
+export type CommonInput = {
     debugMode: boolean;
     requestTimeoutSecs: number;
-
-    // google search parameters
-    countryCode: string;
-    languageCode: string;
-    maxResults: number;
-    serpProxyGroup: SERPProxyGroup;
-    serpMaxRetries: number;
-    query: string;
 
     // content crawler parameters
     dynamicContentWaitSecs: number;
@@ -32,12 +24,24 @@ export type Input = {
     desiredConcurrency: number;
     maxRequestRetries: number;
     proxyConfiguration: ProxyConfigurationOptions;
-    readableTextCharThreshold: number;
     removeElementsCssSelector: string;
     htmlTransformer: string;
     removeCookieWarnings: boolean;
     scrapingTool: ScrapingTool;
 };
+
+export type UrlToMarkdownInput = CommonInput & {
+    url: string;
+};
+
+export type RagWebBrowserInput = CommonInput & {
+    maxResults: number;
+    serpProxyGroup: SERPProxyGroup;
+    serpMaxRetries: number;
+    query: string;
+};
+
+export type Input = UrlToMarkdownInput | RagWebBrowserInput;
 
 export type SearchResultType = 'ORGANIC' | 'SUGGESTED';
 
@@ -81,7 +85,6 @@ export interface ContentScraperSettings {
     htmlTransformer?: string
     maxHtmlCharsToProcess: number;
     outputFormats: OutputFormats[];
-    readableTextCharThreshold: number;
     removeCookieWarnings?: boolean;
     removeElementsCssSelector?: string;
 }

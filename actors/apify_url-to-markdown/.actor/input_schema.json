@@ -1,0 +1,70 @@
+    {
+        "title": "URL to Markdown",
+        "description": "An Apify Actor that takes a URL as input and returns the content of the page in Markdown format.",
+        "type": "object",
+        "schemaVersion": 1,
+        "properties": {
+            "url": {
+                "title": "URL",
+                "type": "string",
+                "description": "Enter the URL of a specific web page to extract its content in Markdown format.",
+                "prefill": "https://apify.com",
+                "editor": "textfield"
+            },
+            "scrapingTool": {
+                "title": "Scraping mode",
+                "type": "string",
+                "description": "Select the scraping mode for extracting the target web pages.\n\nThe Raw HTTP mode (default) is the fastest, but can't handle JavaScript.\n\nThe Browser mode is more powerful, can handle JavaScript heavy websites, but costs more.",
+                "editor": "select",
+                "default": "raw-http",
+                "enum": [
+                    "raw-http",
+                    "browser-playwright"
+                ],
+                "enumTitles": [
+                    "Raw HTTP",
+                    "Browser ($)"
+                ]
+            },
+            "proxyConfiguration": {
+                "sectionCaption": "Scraping settings",
+                "title": "Proxy configuration",
+                "type": "object",
+                "description": "Apify Proxy configuration used for scraping the target web pages.",
+                "default": {
+                    "useApifyProxy": true
+                },
+                "prefill": {
+                    "useApifyProxy": true
+                },
+                "editor": "proxy"
+            },
+            "removeElementsCssSelector": {
+                "title": "Remove HTML elements (CSS selector)",
+                "type": "string",
+                "description": "A CSS selector matching HTML elements that will be removed from the DOM, before converting it to text, Markdown, or saving as HTML. This is useful to skip irrelevant page content. The value must be a valid CSS selector as accepted by the `document.querySelectorAll()` function. \n\nBy default, the Actor removes common navigation elements, headers, footers, modals, scripts, and inline image. You can disable the removal by setting this value to some non-existent CSS selector like `dummy_keep_everything`.",
+                "editor": "hidden",
+                "default": "nav, footer, script, style, noscript, svg, img[src^='data:'],\n[role=\"alert\"],\n[role=\"banner\"],\n[role=\"dialog\"],\n[role=\"alertdialog\"],\n[role=\"region\"][aria-label*=\"skip\" i],\n[aria-modal=\"true\"]",
+                "prefill": "nav, footer, script, style, noscript, svg, img[src^='data:'],\n[role=\"alert\"],\n[role=\"banner\"],\n[role=\"dialog\"],\n[role=\"alertdialog\"],\n[role=\"region\"][aria-label*=\"skip\" i],\n[aria-modal=\"true\"]"
+            },
+            "desiredConcurrency": {
+                "title": "Desired browsing concurrency",
+                "type": "integer",
+                "description": "The desired number of web browsers running in parallel. The system automatically scales the number based on the CPU and memory usage. If the initial value is `0`, the Actor picks the number automatically based on the available memory.",
+                "minimum": 0,
+                "maximum": 50,
+                "default": 1,
+                "editor": "hidden"
+            },
+            "debugMode": {
+                "title": "Enable debug mode",
+                "type": "boolean",
+                "description": "If enabled, the Actor will store debugging information into the resulting dataset under the `debug` field.",
+                "default": false,
+                "editor": "hidden"
+            }
+        },
+        "required": [
+            "url"
+        ]
+    }

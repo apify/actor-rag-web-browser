@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { interpretAsUrl } from '../src/utils';
+import { describe, expect, it } from 'vitest';
+
+import { interpretAsUrl } from '../src/utils.js';
 
 describe('interpretAsUrl', () => {
     it('should return null for empty input', () => {

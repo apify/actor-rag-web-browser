@@ -1,55 +1,55 @@
 {
-	"name": "rag-web-browser",
-	"version": "0.0.1",
-	"type": "module",
-	"description": "RAG Web Browser - run Google Search queries and extract content from the top search results.",
-	"engines": {
-		"node": ">=18.0.0"
-	},
-	"dependencies": {
-		"@crawlee/memory-storage": "^3.11.1",
-		"@ghostery/adblocker-playwright": "^2.5.2",
-		"@modelcontextprotocol/sdk": "^1.0.4",
-		"@mozilla/readability": "^0.5.0",
-		"apify": "^3.5.2",
-		"cheerio": "^1.0.0-rc.12",
-		"crawlee": "^3.15.3",
-		"express": "^4.21.2",
-		"joplin-turndown-plugin-gfm": "^1.0.12",
-		"jsdom": "^24.1.1",
-		"patch-package": "^8.0.0",
-		"playwright": "1.46.0",
-		"turndown": "^7.2.0"
-	},
-	"devDependencies": {
-		"@apify/eslint-config": "^1.0.0",
-		"@apify/tsconfig": "^0.1.0",
-		"@eslint/compat": "^1.2.7",
-		"@eslint/eslintrc": "^3.3.1",
-		"@eslint/js": "^9.23.0",
-		"@types/express": "^5.0.0",
-		"@types/node": "^22.13.1",
-		"@types/turndown": "^5.0.5",
-		"eslint": "^9.23.0",
-		"eslint-config-prettier": "^9.1.0",
-		"eslint-plugin-import": "^2.29.1",
-		"globals": "^16.0.0",
-		"tsx": "^4.6.2",
-		"typescript": "^5.3.3",
-		"typescript-eslint": "^8.29.0",
-		"vitest": "^3.0.5"
-	},
-	"scripts": {
-		"start": "npm run start:dev",
-		"start:prod": "node dist/src/main.js",
-		"start:dev": "tsx src/main.ts",
-		"build": "tsc",
-		"build:playwright-blockers": "NODE_NO_WARNINGS=1 tsx scripts/build-playwright-blockers.ts",
-		"lint": "eslint ./src --ext .ts",
-		"lint:fix": "eslint ./src --ext .ts --fix",
-		"test": "vitest run",
-		"postinstall": "patch-package"
-	},
-	"author": "Apify",
-	"license": "ISC"
+    "name": "rag-web-browser",
+    "version": "0.0.1",
+    "type": "module",
+    "description": "RAG Web Browser - run Google Search queries and extract content from the top search results.",
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "dependencies": {
+        "@crawlee/memory-storage": "^3.11.1",
+        "@ghostery/adblocker-playwright": "^2.5.2",
+        "@modelcontextprotocol/sdk": "^1.0.4",
+        "@mozilla/readability": "^0.5.0",
+        "apify": "^3.7.2",
+        "cheerio": "^1.0.0-rc.12",
+        "crawlee": "^3.15.3",
+        "express": "^4.21.2",
+        "joplin-turndown-plugin-gfm": "^1.0.12",
+        "jsdom": "^24.1.1",
+        "patch-package": "^8.0.0",
+        "playwright": "1.54.1",
+        "turndown": "^7.2.0"
+    },
+    "devDependencies": {
+        "@apify/eslint-config": "^1.0.0",
+        "@apify/tsconfig": "^0.1.0",
+        "@eslint/compat": "^1.2.7",
+        "@eslint/eslintrc": "^3.3.1",
+        "@eslint/js": "^9.23.0",
+        "@types/express": "^5.0.0",
+        "@types/node": "^22.13.1",
+        "@types/turndown": "^5.0.5",
+        "eslint": "^9.23.0",
+        "eslint-config-prettier": "^9.1.0",
+        "eslint-plugin-import": "^2.29.1",
+        "globals": "^16.0.0",
+        "tsx": "^4.6.2",
+        "typescript": "^5.3.3",
+        "typescript-eslint": "^8.29.0",
+        "vitest": "^3.0.5"
+    },
+    "scripts": {
+        "start": "npm run start:dev",
+        "start:prod": "node dist/src/main.js",
+        "start:dev": "tsx src/main.ts",
+        "build": "tsc",
+        "build:playwright-blockers": "NODE_NO_WARNINGS=1 tsx scripts/build-playwright-blockers.ts",
+        "lint": "eslint",
+        "lint:fix": "eslint --fix",
+        "test": "vitest run",
+        "postinstall": "patch-package"
+    },
+    "author": "Apify",
+    "license": "ISC"
 }

@@ -1,16 +1,17 @@
 import type { Server } from 'node:http';
+
 import {
-    describe,
-    it,
-    beforeAll,
     afterAll,
+    beforeAll,
+    describe,
     expect,
+    it,
 } from 'vitest';
 
-import { createAndStartContentCrawler, createAndStartSearchCrawler } from '../src/crawlers';
-import { processStandbyInput } from '../src/input';
-import { createServer } from '../src/server';
-import { startTestServer, stopTestServer } from './helpers/server';
+import { createAndStartContentCrawler, createAndStartSearchCrawler } from '../src/crawlers.js';
+import { processStandbyInput } from '../src/input.js';
+import { createServer } from '../src/server.js';
+import { startTestServer, stopTestServer } from './helpers/server.js';
 
 describe('Standby RAG tests', () => {
     let browserServer: Server;
@@ -18,6 +19,7 @@ describe('Standby RAG tests', () => {
     let testServer: Server;
     const testServerPort = 3042;
     const baseUrl = `http://localhost:${testServerPort}`;
+    process.env.ACTOR_FULL_NAME = 'apify/rag-web-browser';
 
     beforeAll(async () => {
         testServer = startTestServer(testServerPort);

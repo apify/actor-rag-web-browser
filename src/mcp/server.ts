@@ -1,37 +1,25 @@
 #!/usr/bin/env node
 
-/**
- * Model Context Protocol (MCP) server for RAG Web Browser Actor
- */
-
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
-import inputSchema from '../../.actor/input_schema.json' with { type: 'json' };
+import { getMiniActor, type InputSchema } from '../mini-actors.js';
 import { handleModelContextProtocol } from '../search.js';
 import type { Input } from '../types.js';
 
-const TOOL_SEARCH = inputSchema.title.toLowerCase().replace(/ /g, '-');
-
-const TOOLS = [
-    {
-        name: TOOL_SEARCH,
-        description: inputSchema.description,
-        inputSchema,
-    },
-];
-
-/**
- * Create an MCP server with a tool to call RAG Web Browser Actor
- */
-export class RagWebBrowserServer {
+export class McpServer {
     private server: Server;
+    private toolName: string;
 
     constructor() {
+        const miniActor = getMiniActor();
+        const { inputSchema, mcpServerName: serverName } = miniActor;
+        this.toolName = inputSchema.title.toLowerCase().replace(/ /g, '-');
+
         this.server = new Server(
             {
-                name: 'mcp-server-rag-web-browser',
+                name: serverName,
                 version: '0.1.0',
             },
             {
@@ -41,7 +29,7 @@ export class RagWebBrowserServer {
             },
         );
         this.setupErrorHandling();
-        this.setupToolHandlers();
+        this.setupToolHandlers(inputSchema);
     }
 
     private setupErrorHandling(): void {
@@ -54,23 +42,25 @@ export class RagWebBrowserServer {
         });
     }
 
-    private setupToolHandlers(): void {
+    private setupToolHandlers(inputSchema: InputSchema): void {
+        const tools = [
+            {
+                name: this.toolName,
+                description: inputSchema.description,
+                inputSchema,
+            },
+        ];
+
         this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-            return {
-                tools: TOOLS,
-            };
+            return { tools };
         });
         this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
             const { name, arguments: args } = request.params;
-            switch (name) {
-                case TOOL_SEARCH: {
-                    const content = await handleModelContextProtocol(args as unknown as Input);
-                    return { content: content.map((message) => ({ type: 'text', text: JSON.stringify(message) })) };
-                }
-                default: {
-                    throw new Error(`Unknown tool: ${name}`);
-                }
+            if (name === this.toolName) {
+                const content = await handleModelContextProtocol(args as unknown as Input);
+                return { content: content.map((message) => ({ type: 'text', text: JSON.stringify(message) })) };
             }
+            throw new Error(`Unknown tool: ${name}`);
         });
     }
 

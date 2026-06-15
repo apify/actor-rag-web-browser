@@ -2,12 +2,13 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { type CheerioCrawlerOptions, log } from 'crawlee';
 
-import { PLAYWRIGHT_REQUEST_TIMEOUT_NORMAL_MODE_SECS, Routes } from './const.js';
+import { PLAYWRIGHT_REQUEST_TIMEOUT_NORMAL_MODE_SECS } from './const.js';
 import { addContentCrawlRequest, addSearchRequest, createAndStartContentCrawler, createAndStartSearchCrawler } from './crawlers.js';
 import { UserInputError } from './errors.js';
 import { processInput } from './input.js';
+import { getMiniActor } from './mini-actors.js';
 import { createResponsePromise } from './responses.js';
-import type { ContentCrawlerOptions, ContentScraperSettings, Input, Output } from './types.js';
+import type { ContentCrawlerOptions, ContentScraperSettings, Input, Output, RagWebBrowserInput, UrlToMarkdownInput } from './types.js';
 import {
     addTimeMeasureEvent,
     createRequest,
@@ -28,23 +29,38 @@ function prepareRequest(
     contentCrawlerKey: string,
     contentScraperSettings: ContentScraperSettings,
 ) {
-    const interpretedUrl = interpretAsUrl(input.query);
-    const query = interpretedUrl ?? input.query;
+    if (!getMiniActor().runsSearch) {
+        const responseId = randomId();
+        const { url } = (input as Input & UrlToMarkdownInput);
+        const req = createRequest(
+            url,
+            { url },
+            responseId,
+            contentScraperSettings,
+            null,
+        );
+        addTimeMeasureEvent(req.userData!, 'request-received', Date.now());
+        return { req, isUrl: true, responseId };
+    }
+
+    const { query, maxResults } = input as Input & RagWebBrowserInput;
+    const interpretedUrl = interpretAsUrl(query);
+    const validatedQuery = interpretedUrl ?? query;
     const responseId = randomId();
 
     const req = interpretedUrl
         ? createRequest(
-            query,
-            { url: query },
+            validatedQuery,
+            { url: validatedQuery },
             responseId,
             contentScraperSettings,
             null,
         )
         : createSearchRequest(
             {
-                query,
+                query: validatedQuery,
                 responseId,
-                maxResults: input.maxResults,
+                maxResults,
                 contentCrawlerKey,
                 contentScraperSettings,
             },
@@ -72,7 +88,6 @@ async function runSearchProcess(params: Partial<Input>): Promise<Output[]> {
     searchCrawlerOptions.keepAlive = true;
     contentCrawlerOptions.crawlerOptions.keepAlive = true;
 
-    await createAndStartSearchCrawler(searchCrawlerOptions);
     const { key: contentCrawlerKey } = await createAndStartContentCrawler(contentCrawlerOptions);
 
     const { req, isUrl, responseId } = prepareRequest(
@@ -87,9 +102,13 @@ async function runSearchProcess(params: Partial<Input>): Promise<Output[]> {
 
     if (isUrl) {
         // If input is a direct URL, skip the search crawler
-        log.info(`Skipping Google Search query as "${input.query}" is a valid URL`);
+        if (getMiniActor().runsSearch) {
+            const { query } = (input as Input & RagWebBrowserInput);
+            log.info(`Skipping Google Search query as "${query}" is a valid URL`);
+        }
         await addContentCrawlRequest(req, responseId, contentCrawlerKey);
     } else {
+        await createAndStartSearchCrawler(searchCrawlerOptions);
         // If input is a search query, run the search crawler first
         await addSearchRequest(req, searchCrawlerOptions);
     }
@@ -99,12 +118,12 @@ async function runSearchProcess(params: Partial<Input>): Promise<Output[]> {
 }
 
 /**
- * Handles the search request at the /search endpoint (HTTP scenario).
+ * Handles the search request at the /search or /fetch endpoint (HTTP scenario).
  * Uses the unified runSearchProcess function and then sends an HTTP response.
  */
 export async function handleSearchRequest(request: IncomingMessage, response: ServerResponse) {
     try {
-        const params = parseParameters(request.url?.slice(Routes.SEARCH.length) ?? '');
+        const params = parseParameters(request.url?.slice(getMiniActor().route.length) ?? '');
         log.info(`Received query parameters: ${JSON.stringify(params)}`);
 
         const results = await runSearchProcess(params);
@@ -138,7 +157,8 @@ export async function handleModelContextProtocol(params: Partial<Input>): Promis
 /**
  * Runs the search and scrape in normal mode.
  */
-export async function handleSearchNormalMode(input: Input,
+export async function handleSearchNormalMode(
+    input: Input,
     searchCrawlerOptions: CheerioCrawlerOptions,
     contentCrawlerOptions: ContentCrawlerOptions,
     contentScraperSettings: ContentScraperSettings,
@@ -147,7 +167,6 @@ export async function handleSearchNormalMode(input: Input,
     const startedTime = Date.now();
     contentCrawlerOptions.crawlerOptions.requestHandlerTimeoutSecs = PLAYWRIGHT_REQUEST_TIMEOUT_NORMAL_MODE_SECS;
 
-    const { crawler: searchCrawler } = await createAndStartSearchCrawler(searchCrawlerOptions, false);
     const {
         crawler: contentCrawler,
         key: contentCrawlerKey,
@@ -160,10 +179,14 @@ export async function handleSearchNormalMode(input: Input,
         contentScraperSettings,
     );
     if (isUrl) {
-        // If the input query is a URL, we don't need to run the search crawler
-        log.info(`Skipping Google Search query because "${input.query}" is a valid URL.`);
+        if (getMiniActor().runsSearch) {
+            // If the input query is a URL, we don't need to run the search crawler
+            const { query } = (input as Input & RagWebBrowserInput);
+            log.info(`Skipping Google Search query as "${query}" is a valid URL`);
+        }
         await addContentCrawlRequest(req, '', contentCrawlerKey);
     } else {
+        const { crawler: searchCrawler } = await createAndStartSearchCrawler(searchCrawlerOptions, false);
         await addSearchRequest(req, searchCrawlerOptions);
         addTimeMeasureEvent(req.userData!, 'before-cheerio-run', startedTime);
         log.info(`Running Google Search crawler with request: ${JSON.stringify(req)}`);

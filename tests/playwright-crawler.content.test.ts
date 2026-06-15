@@ -1,18 +1,21 @@
+import type { Server } from 'node:http';
+
 import { MemoryStorage } from '@crawlee/memory-storage';
 import { RequestQueue } from 'apify';
-import { Configuration, PlaywrightCrawler, log, type PlaywrightCrawlingContext } from 'crawlee';
-import type { Server } from 'node:http';
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { Configuration, log, PlaywrightCrawler, type PlaywrightCrawlingContext } from 'crawlee';
+import { firefox } from 'playwright';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { startTestServer, stopTestServer } from './helpers/server';
-import { requestHandlerPlaywright } from '../src/request-handler';
-import type { ContentCrawlerUserData } from '../src/types';
-import { createRequest } from '../src/utils';
+import { requestHandlerPlaywright } from '../src/request-handler.js';
+import type { ContentCrawlerUserData } from '../src/types.js';
+import { createRequest } from '../src/utils.js';
+import { startTestServer, stopTestServer } from './helpers/server.js';
 
 describe('Playwright Crawler Content Tests', () => {
     let testServer: Server;
     const testServerPort = 3041;
     const baseUrl = `http://localhost:${testServerPort}`;
+    process.env.ACTOR_FULL_NAME = 'apify/rag-web-browser';
 
     // Start the test server before all tests
     beforeAll(async () => {
@@ -40,7 +43,7 @@ describe('Playwright Crawler Content Tests', () => {
 
                 expect(pushDataSpy).toHaveBeenCalledTimes(1);
                 expect(pushDataSpy).toHaveBeenCalledWith(expect.objectContaining({
-                    text: expect.stringContaining('hello world')
+                    text: expect.stringContaining('hello world'),
                 }));
                 successUrls.add(context.request.url);
             },
@@ -50,6 +53,7 @@ describe('Playwright Crawler Content Tests', () => {
             },
             // Playwright-specific configuration
             launchContext: {
+                launcher: firefox,
                 launchOptions: {
                     headless: true,
                 },
@@ -70,7 +74,6 @@ describe('Playwright Crawler Content Tests', () => {
             {
                 debugMode: false,
                 outputFormats: ['text'],
-                readableTextCharThreshold: 50,
                 maxHtmlCharsToProcess: 100000,
                 dynamicContentWaitSecs: 20,
             },

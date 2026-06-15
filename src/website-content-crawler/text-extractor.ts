@@ -2,8 +2,6 @@ import { isProbablyReaderable, Readability } from '@mozilla/readability';
 import { log } from 'crawlee';
 import { JSDOM, VirtualConsole } from 'jsdom';
 
-import type { ContentScraperSettings } from '../types.js';
-
 const virtualConsole = new VirtualConsole();
 virtualConsole.on('error', (error) => {
     log.error(`JSDOM error: ${error}`);
@@ -15,12 +13,10 @@ virtualConsole.on('error', (error) => {
 export async function readableText({
     html,
     url,
-    settings,
     options,
 }: {
     html: string;
     url: string;
-    settings: ContentScraperSettings;
     options?: {
         fallbackToNone?: boolean;
     };
@@ -34,7 +30,6 @@ export async function readableText({
     }
 
     const reader = new Readability(dom.window.document, {
-        charThreshold: settings.readableTextCharThreshold,
         serializer: (n) => n, // Keep the original node, we'll be updating it later
     });
     const parsed = reader.parse();

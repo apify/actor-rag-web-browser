@@ -3,6 +3,7 @@ import { log } from 'crawlee';
 
 import { createAndStartContentCrawler, createAndStartSearchCrawler } from './crawlers.js';
 import { processInput, processStandbyInput } from './input.js';
+import { getMiniActor } from './mini-actors.js';
 import { addTimeoutToAllResponses } from './responses.js';
 import { handleSearchNormalMode } from './search.js';
 import { createServer } from './server.js';
@@ -30,7 +31,7 @@ if (isActorStandby()) {
         contentScraperSettings,
     } = await processStandbyInput(originalInput);
 
-    log.info(`Loaded input: ${JSON.stringify(input)},
+    log.debug(`Loaded input: ${JSON.stringify(input)},
         cheerioCrawlerOptions: ${JSON.stringify(searchCrawlerOptions)},
         contentCrawlerOptions: ${JSON.stringify(contentCrawlerOptions)},
         contentScraperSettings ${JSON.stringify(contentScraperSettings)}
@@ -40,7 +41,9 @@ if (isActorStandby()) {
 
     app.listen(port, async () => {
         const promises: Promise<unknown>[] = [];
-        promises.push(createAndStartSearchCrawler(searchCrawlerOptions));
+        if (getMiniActor().runsSearch) {
+            promises.push(createAndStartSearchCrawler(searchCrawlerOptions));
+        }
         for (const settings of contentCrawlerOptions) {
             promises.push(createAndStartContentCrawler(settings));
         }
@@ -51,14 +54,13 @@ if (isActorStandby()) {
 } else {
     log.info('Actor is running in the NORMAL mode.');
 
-    const {
-        input,
-        searchCrawlerOptions,
-        contentCrawlerOptions,
-        contentScraperSettings,
-    } = await processInput(originalInput);
+    const processedInput = await processInput(originalInput).catch(async (e: Error) => {
+        throw await Actor.fail(`Input processing failed: ${e.message}`);
+    });
 
-    log.info(`Loaded input: ${JSON.stringify(input)},
+    const { input, searchCrawlerOptions, contentCrawlerOptions, contentScraperSettings } = processedInput;
+
+    log.debug(`Loaded input: ${JSON.stringify(input)},
         cheerioCrawlerOptions: ${JSON.stringify(searchCrawlerOptions)},
         contentCrawlerOptions: ${JSON.stringify(contentCrawlerOptions)},
         contentScraperSettings ${JSON.stringify(contentScraperSettings)}
