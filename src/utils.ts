@@ -221,6 +221,7 @@ export function interpretAsUrl(input: string): string | null {
 
     function tryValid(s: string): string | null {
         const trimmed = s.trim();
+        if (/\s/.test(trimmed)) return null;
 
         try {
             const url = new URL(trimmed);
