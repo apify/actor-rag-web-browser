@@ -23,6 +23,24 @@ const inputSchema = {
     },
 };
 
+const SCHEMELESS_URL_DOMAIN_SUFFIXES = [
+    'com',
+    'net',
+    'org',
+    'ai',
+    'io',
+    'co',
+    'co.uk',
+    'edu',
+    'gov',
+    'biz',
+    'info',
+    'us',
+    'shop',
+];
+
+const DOMAIN_LABEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
+
 export function isActorStandby(): boolean {
     return Actor.getEnv().metaOrigin === 'STANDBY';
 }
@@ -181,8 +199,10 @@ export function transformTimeMeasuresToRelative(timeMeasures: TimeMeasure[]): Ti
 }
 
 /**
- * Interpret the input as a URL (valid URL starts with http:// or https://).
- * If the input is a URL, return it; otherwise, try to decode it and check if it's a valid URL.
+ * Interpret the input as an HTTP(S) URL.
+ * URLs without a protocol are accepted only for a limited set of well-known domain suffixes.
+ * This prevents search queries such as "famous.actor" from being interpreted as URLs.
+ * If the input is not initially valid, try to decode it and check again.
  * Attempt to decode the input string up to 3 times, as users may encode the URL multiple times.
  * @param input - The input string to interpret as a URL.
  * @returns The valid URL string or null if invalid.
@@ -190,10 +210,30 @@ export function transformTimeMeasuresToRelative(timeMeasures: TimeMeasure[]): Ti
 export function interpretAsUrl(input: string): string | null {
     if (!input) return null;
 
+    function hasSupportedDomainSuffix(hostname: string): boolean {
+        const normalizedHostname = hostname.toLowerCase().replace(/\.$/, '');
+        const labels = normalizedHostname.split('.');
+
+        if (!labels.every((label) => DOMAIN_LABEL_PATTERN.test(label))) return false;
+
+        return SCHEMELESS_URL_DOMAIN_SUFFIXES.some((suffix) => normalizedHostname.endsWith(`.${suffix}`));
+    }
+
     function tryValid(s: string): string | null {
+        const trimmed = s.trim();
+
         try {
-            const url = new URL(s);
-            return /^https?:/i.test(url.protocol) ? url.href : null;
+            const url = new URL(trimmed);
+            if (/^https?:/i.test(url.protocol)) return url.href;
+        } catch {
+            // Continue by checking whether this is a supported URL without a protocol.
+        }
+
+        try {
+            const url = new URL(trimmed.startsWith('//') ? `https:${trimmed}` : `https://${trimmed}`);
+            if (url.username || url.password) return null;
+
+            return hasSupportedDomainSuffix(url.hostname) ? url.href : null;
         } catch {
             return null;
         }
