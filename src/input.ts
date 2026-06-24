@@ -190,6 +190,10 @@ async function processUrlToMarkdownInput(input: Partial<UrlToMarkdownInput>, sta
     if (!interpretedUrl && !standbyInit) {
         throw new UserInputError('The `url` parameter must be a valid URL or a string that can be interpreted as a URL.');
     }
+    if (interpretedUrl) {
+        // eslint-disable-next-line no-param-reassign
+        input.url = interpretedUrl;
+    }
     // We default to the only supported output format for this mini-actor, no choice for the user
     // eslint-disable-next-line no-param-reassign
     input.outputFormats = ['markdown'];
