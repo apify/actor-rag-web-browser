@@ -21,7 +21,7 @@ import { getMiniActor } from './mini-actors.js';
 import { failedRequestHandler, requestHandlerCheerio, requestHandlerPlaywright } from './request-handler.js';
 import { addEmptyResultToResponse, sendResponseError } from './responses.js';
 import type { ContentCrawlerOptions, ContentCrawlerUserData, SearchCrawlerUserData } from './types.js';
-import { addTimeMeasureEvent, createRequest, createSearchRequest } from './utils.js';
+import { addTimeMeasureEvent, createRequest, createSearchRequest, isActorStandby, randomId } from './utils.js';
 
 const crawlers = new Map<string, CheerioCrawler | PlaywrightCrawler>();
 const client = new MemoryStorage({ persistStorage: false });
@@ -100,7 +100,7 @@ export async function createAndStartSearchCrawler(
             const organicResults = scrapeOrganicResults($);
 
             // Destructure userData for easier access (pagination fields are initialized in createSearchRequest)
-            const { collectedResults, currentPage, totalPages, maxResults } = request.userData;
+            const { collectedResults, currentPage, totalPages, maxResults, userAuthorization } = request.userData;
 
             // Merge with previously collected results and deduplicate
             const allResults = [...collectedResults, ...organicResults];
@@ -148,6 +148,7 @@ export async function createAndStartSearchCrawler(
                         responseId,
                         request.userData.contentScraperSettings!,
                         request.userData.timeMeasures!,
+                        userAuthorization,
                     );
                     await addContentCrawlRequest(r, responseId, request.userData.contentCrawlerKey!);
                 }
@@ -222,8 +223,9 @@ async function createPlaywrightContentCrawler(
         keepAlive: crawlerOptions.keepAlive,
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
         requestHandler: (async (context) => {
-            await requestHandlerPlaywright(context as unknown as PlaywrightCrawlingContext<ContentCrawlerUserData>, blocker);
-            await maybeCharge(ContentCrawlerTypes.PLAYWRIGHT);
+            const typedContext = context as unknown as PlaywrightCrawlingContext<ContentCrawlerUserData>;
+            await requestHandlerPlaywright(typedContext, blocker);
+            await maybeCharge(ContentCrawlerTypes.PLAYWRIGHT, typedContext.request.userData.userAuthorization);
         }),
         failedRequestHandler: async ({ request }, err) => {
             await failedRequestHandler(request, err, ContentCrawlerTypes.PLAYWRIGHT);
@@ -241,9 +243,9 @@ async function createCheerioContentCrawler(
         keepAlive: crawlerOptions.keepAlive,
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
         requestHandler: (async (context) => {
-            await requestHandlerCheerio(context as unknown as CheerioCrawlingContext<ContentCrawlerUserData>,
-            );
-            await maybeCharge(ContentCrawlerTypes.CHEERIO);
+            const typedContext = context as unknown as CheerioCrawlingContext<ContentCrawlerUserData>;
+            await requestHandlerCheerio(typedContext);
+            await maybeCharge(ContentCrawlerTypes.CHEERIO, typedContext.request.userData.userAuthorization);
         }),
         failedRequestHandler: async ({ request }, err) => {
             await failedRequestHandler(request, err, ContentCrawlerTypes.CHEERIO);
@@ -251,13 +253,63 @@ async function createCheerioContentCrawler(
     });
 }
 
-async function maybeCharge(crawlerType: ContentCrawlerTypes) {
-    const eventName = crawlerType === ContentCrawlerTypes.PLAYWRIGHT
+function getEventName(crawlerType: ContentCrawlerTypes): string {
+    return crawlerType === ContentCrawlerTypes.PLAYWRIGHT
         ? URL_TO_MARKDOWN_PPE_EVENTS.PLAYWRIGHT
         : URL_TO_MARKDOWN_PPE_EVENTS.RAW_HTTP;
+}
+
+/**
+ * Normal (non-standby) single-run charging via the Actor SDK.
+ */
+async function chargeNormal(eventName: string): Promise<void> {
+    await Actor.charge({ eventName });
+}
+
+/**
+ * Multi-tenant standby charging: POSTs directly to the platform charge REST endpoint,
+ * passing the calling end-user's authorization so that user (not the Actor owner) is billed.
+ */
+async function chargeStandby(eventName: string, userAuthorization: string): Promise<void> {
+    const { apiBaseUrl, actorRunId, token } = Actor.getEnv();
+    if (!apiBaseUrl || !actorRunId || !token) {
+        log.warning(`Skipping standby charge for ${eventName} event: missing apiBaseUrl/actorRunId/token from Actor.getEnv().`);
+        return;
+    }
+    const url = `${apiBaseUrl}/v2/actor-runs/${actorRunId}/charge`;
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'Idempotency-Key': randomId(),
+        },
+        body: JSON.stringify({ eventName, count: 1, userAuthorization }),
+    });
+    if (!response.ok) {
+        const resText = await response.text();
+        throw new Error(`Charging failed: ${resText}`);
+    }
+}
+
+/**
+ * Dispatches to the correct charging path (normal single-run vs. multi-tenant standby)
+ * based on isActorStandby().
+ */
+async function maybeCharge(crawlerType: ContentCrawlerTypes, userAuthorization?: string) {
+    if (getMiniActor().name !== 'url-to-markdown') {
+        return;
+    }
+    const eventName = getEventName(crawlerType);
     try {
-        if (getMiniActor().name === 'url-to-markdown') {
-            await Actor.charge({ eventName });
+        if (isActorStandby()) {
+            if (!userAuthorization) {
+                log.warning(`Skipping standby charge for ${eventName} event: missing userAuthorization (x-apify-user-authorization header was not provided).`);
+                return;
+            }
+            await chargeStandby(eventName, userAuthorization);
+        } else {
+            await chargeNormal(eventName);
         }
     } catch (err) {
         log.error(`Failed to charge for ${eventName} event: ${err instanceof Error ? err.message : String(err)}`);

@@ -1,3 +1,4 @@
+import type { IncomingHttpHeaders } from 'node:http';
 import { parse } from 'node:querystring';
 
 import { Actor } from 'apify';
@@ -43,6 +44,15 @@ const DOMAIN_LABEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
 
 export function isActorStandby(): boolean {
     return Actor.getEnv().metaOrigin === 'STANDBY';
+}
+
+/**
+ * Extracts the calling end-user's authorization from the x-apify-user-authorization header.
+ * Node lower-cases header names, and the header could theoretically arrive as a string array.
+ */
+export function extractUserAuthorization(headers: IncomingHttpHeaders): string | undefined {
+    const header = headers['x-apify-user-authorization'];
+    return Array.isArray(header) ? header[0] : header;
 }
 
 /**
@@ -145,6 +155,7 @@ export function createSearchRequest(
             collectedResults,
             currentPage,
             totalPages,
+            userAuthorization: userData.userAuthorization,
         },
     };
 }
@@ -158,6 +169,7 @@ export function createRequest(
     responseId: string,
     contentScraperSettings: ContentScraperSettings,
     timeMeasures: TimeMeasure[] | null = null,
+    userAuthorization?: string,
 ): RequestOptions<ContentCrawlerUserData> {
     return {
         url: result.url!,
@@ -168,6 +180,7 @@ export function createRequest(
             searchResult: result.url && result.title ? result : undefined,
             timeMeasures: timeMeasures ? [...timeMeasures] : [],
             contentScraperSettings,
+            userAuthorization,
         },
     };
 }

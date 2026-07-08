@@ -6,6 +6,7 @@ import { Routes } from './const.js';
 import { McpServer } from './mcp/server.js';
 import { getMiniActor } from './mini-actors.js';
 import { handleSearchRequest } from './search.js';
+import { extractUserAuthorization } from './utils.js';
 
 export function createServer(): express.Express {
     const app = express();
@@ -35,7 +36,8 @@ export function createServer(): express.Express {
     app.get(Routes.SSE, async (req: Request, res: Response) => {
         log.info(`Received GET message at: ${req.url}`);
         transport = new SSEServerTransport(Routes.MESSAGE, res);
-        await mcpServer.connect(transport);
+        const userAuthorization = extractUserAuthorization(req.headers);
+        await mcpServer.connect(transport, userAuthorization);
     });
 
     app.post(Routes.MESSAGE, async (req: Request, res: Response) => {

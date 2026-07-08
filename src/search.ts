@@ -13,6 +13,7 @@ import {
     addTimeMeasureEvent,
     createRequest,
     createSearchRequest,
+    extractUserAuthorization,
     interpretAsUrl,
     parseParameters,
     randomId,
@@ -28,6 +29,7 @@ function prepareRequest(
     searchCrawlerOptions: CheerioCrawlerOptions,
     contentCrawlerKey: string,
     contentScraperSettings: ContentScraperSettings,
+    userAuthorization?: string,
 ) {
     if (!getMiniActor().runsSearch) {
         const responseId = randomId();
@@ -38,6 +40,7 @@ function prepareRequest(
             responseId,
             contentScraperSettings,
             null,
+            userAuthorization,
         );
         addTimeMeasureEvent(req.userData!, 'request-received', Date.now());
         return { req, isUrl: true, responseId };
@@ -55,6 +58,7 @@ function prepareRequest(
             responseId,
             contentScraperSettings,
             null,
+            userAuthorization,
         )
         : createSearchRequest(
             {
@@ -63,6 +67,7 @@ function prepareRequest(
                 maxResults,
                 contentCrawlerKey,
                 contentScraperSettings,
+                userAuthorization,
             },
             searchCrawlerOptions.proxyConfiguration,
         );
@@ -75,7 +80,7 @@ function prepareRequest(
  * Internal function that handles the common logic for search.
  * Returns a promise that resolves to the final results array of Output objects.
  */
-async function runSearchProcess(params: Partial<Input>): Promise<Output[]> {
+async function runSearchProcess(params: Partial<Input>, userAuthorization?: string): Promise<Output[]> {
     // Process the query parameters the same way as normal inputs
     const {
         input,
@@ -95,6 +100,7 @@ async function runSearchProcess(params: Partial<Input>): Promise<Output[]> {
         searchCrawlerOptions,
         contentCrawlerKey,
         contentScraperSettings,
+        userAuthorization,
     );
 
     // Create a promise that resolves when all requests are processed
@@ -126,7 +132,9 @@ export async function handleSearchRequest(request: IncomingMessage, response: Se
         const params = parseParameters(request.url?.slice(getMiniActor().route.length) ?? '');
         log.info(`Received query parameters: ${JSON.stringify(params)}`);
 
-        const results = await runSearchProcess(params);
+        const userAuthorization = extractUserAuthorization(request.headers);
+
+        const results = await runSearchProcess(params, userAuthorization);
 
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify(results));
@@ -143,10 +151,10 @@ export async function handleSearchRequest(request: IncomingMessage, response: Se
  * Handles the model context protocol scenario (non-HTTP scenario).
  * Uses the same runSearchProcess function but just returns the results as a promise.
  */
-export async function handleModelContextProtocol(params: Partial<Input>): Promise<Output[]> {
+export async function handleModelContextProtocol(params: Partial<Input>, userAuthorization?: string): Promise<Output[]> {
     try {
         log.info(`Received parameters: ${JSON.stringify(params)}`);
-        return await runSearchProcess(params);
+        return await runSearchProcess(params, userAuthorization);
     } catch (e) {
         const error = e as Error;
         log.error(`UserInputError occurred: ${error.message}`);
