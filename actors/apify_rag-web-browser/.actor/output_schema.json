@@ -1,0 +1,12 @@
+{
+    "$schema": "https://apify-projects.github.io/actor-json-schemas/output.json?v=0.3",
+    "actorOutputSchemaVersion": 1,
+    "title": "Output schema of the Actor",
+    "properties": {
+        "crawlResults": {
+            "type": "string",
+            "title": "Crawl results",
+            "template": "{{links.apiDefaultDatasetUrl}}/items"
+        }
+    }
+}
