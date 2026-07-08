@@ -276,7 +276,7 @@ async function chargeStandby(eventName: string, userAuthorization: string): Prom
         log.warning(`Skipping standby charge for ${eventName} event: missing apiBaseUrl/actorRunId/token from Actor.getEnv().`);
         return;
     }
-    const url = `${apiBaseUrl}/v2/actor-runs/${actorRunId}/charge`;
+    const url = `${apiBaseUrl}v2/actor-runs/${actorRunId}/charge`;
     const response = await fetch(url, {
         method: 'POST',
         headers: {
