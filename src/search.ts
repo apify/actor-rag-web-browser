@@ -32,11 +32,19 @@ function prepareRequest(
     userAuthorization?: string,
 ) {
     if (!getMiniActor().runsSearch) {
-        const responseId = randomId();
         const { url } = (input as Input & UrlToMarkdownInput);
+        if (!url) {
+            throw new UserInputError('The `url` parameter must be provided and non-empty.');
+        }
+        const interpretedUrl = interpretAsUrl(url);
+        if (!interpretedUrl) {
+            throw new UserInputError('The `url` parameter must be a valid URL or a string that can be interpreted as a URL.');
+        }
+
+        const responseId = randomId();
         const req = createRequest(
-            url,
-            { url },
+            interpretedUrl,
+            { url: interpretedUrl },
             responseId,
             contentScraperSettings,
             null,
@@ -47,6 +55,9 @@ function prepareRequest(
     }
 
     const { query, maxResults } = input as Input & RagWebBrowserInput;
+    if (!query) {
+        throw new UserInputError('The `query` parameter must be provided and non-empty.');
+    }
     const interpretedUrl = interpretAsUrl(query);
     const validatedQuery = interpretedUrl ?? query;
     const responseId = randomId();

@@ -18,7 +18,6 @@ import type {
     SERPProxyGroup,
     UrlToMarkdownInput,
 } from './types.js';
-import { interpretAsUrl } from './utils.js';
 
 /**
  * Processes the input and returns an array of crawler settings. This is ideal for startup of STANDBY mode
@@ -101,10 +100,9 @@ async function processRagWebBrowserInput(input: Partial<RagWebBrowserInput>, sta
     }> {
     /* eslint-disable no-param-reassign */
 
-    // Throw an error if the query and is not provided and standbyInit is false.
-    if (!input.query && !standbyInit) {
-        throw new UserInputError('The `query` parameter must be provided and non-empty.');
-    }
+    // Note: `query` is intentionally not validated here. It is a per-request property (depending on
+    // the mini-actor) rather than a startup/crawler-configuration property, so its presence and validity
+    // are checked when the request is actually formed (see `prepareRequest` in search.ts).
 
     // Max results
     input.maxResults = validateRange(
@@ -183,17 +181,10 @@ async function processRagWebBrowserInput(input: Partial<RagWebBrowserInput>, sta
 }
 
 async function processUrlToMarkdownInput(input: Partial<UrlToMarkdownInput>): Promise<UrlToMarkdownInput> {
-    if (!input.url) {
-        throw new UserInputError('The `url` parameter must be provided and non-empty.');
-    }
-    const interpretedUrl = interpretAsUrl(input.url!);
-    if (!interpretedUrl) {
-        throw new UserInputError('The `url` parameter must be a valid URL or a string that can be interpreted as a URL.');
-    }
-    if (interpretedUrl) {
-        // eslint-disable-next-line no-param-reassign
-        input.url = interpretedUrl;
-    }
+    // Note: `url` is intentionally not validated or interpreted here. It is a per-request property
+    // rather than a startup/crawler-configuration property, so its presence and validity are checked
+    // when the request is actually formed (see `prepareRequest` in search.ts).
+
     // We default to the only supported output format for this mini-actor, no choice for the user
     // eslint-disable-next-line no-param-reassign
     input.outputFormats = ['markdown'];
@@ -280,7 +271,6 @@ function createCheerioCrawlerOptions(
 
 /**
  * Validates the input and fills in the default values where necessary.
- * This is a bit ugly, but it's necessary to avoid throwing an error when the query is not provided in standby mode.
  */
 function validateAndFillInput(input: Partial<Input>): Input {
     /* eslint-disable no-param-reassign */
