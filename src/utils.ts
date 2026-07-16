@@ -238,7 +238,9 @@ export function interpretAsUrl(input: string): string | null {
 
         try {
             const url = new URL(trimmed);
-            if (/^https?:/i.test(url.protocol)) return url.href;
+            const hasValidProtocol = /^https?:/i.test(url.protocol);
+            const hasValidHostname = url.hostname.split('.').length > 1 || url.hostname === 'localhost';
+            if (hasValidProtocol && hasValidHostname) return url.href;
         } catch {
             // Continue by checking whether this is a supported URL without a protocol.
         }

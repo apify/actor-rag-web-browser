@@ -67,7 +67,7 @@ async function processInputInternal(
         input = processedRagWebBrowserInput.validatedRagBrowserInput;
         searchCrawlerOptions = processedRagWebBrowserInput.searchCrawlerOptions;
     } else {
-        input = await processUrlToMarkdownInput(originalInput as Partial<UrlToMarkdownInput>, standbyInit);
+        input = await processUrlToMarkdownInput(originalInput as Partial<UrlToMarkdownInput>);
     }
 
     const {
@@ -182,12 +182,12 @@ async function processRagWebBrowserInput(input: Partial<RagWebBrowserInput>, sta
     /* eslint-enable no-param-reassign */
 }
 
-async function processUrlToMarkdownInput(input: Partial<UrlToMarkdownInput>, standbyInit: boolean): Promise<UrlToMarkdownInput> {
-    if (!input.url && !standbyInit) {
+async function processUrlToMarkdownInput(input: Partial<UrlToMarkdownInput>): Promise<UrlToMarkdownInput> {
+    if (!input.url) {
         throw new UserInputError('The `url` parameter must be provided and non-empty.');
     }
     const interpretedUrl = interpretAsUrl(input.url!);
-    if (!interpretedUrl && !standbyInit) {
+    if (!interpretedUrl) {
         throw new UserInputError('The `url` parameter must be a valid URL or a string that can be interpreted as a URL.');
     }
     if (interpretedUrl) {
