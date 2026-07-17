@@ -239,7 +239,7 @@ export function interpretAsUrl(input: string): string | null {
         try {
             const url = new URL(trimmed);
             const hasValidProtocol = /^https?:/i.test(url.protocol);
-            const hasValidHostname = url.hostname.split('.').length > 1 || url.hostname === 'localhost';
+            const hasValidHostname = url.hostname.split('.').filter(Boolean).length > 1 || url.hostname === 'localhost';
             if (hasValidProtocol && hasValidHostname) return url.href;
         } catch {
             // Continue by checking whether this is a supported URL without a protocol.
