@@ -111,7 +111,7 @@
             "htmlTransformer": {
                 "title": "HTML transformer",
                 "type": "string",
-                "description": "Specify how to transform the HTML to extract meaningful content without any extra fluff, like navigation or modals. The HTML transformation happens after removing and clicking the DOM elements.\n\n- **None** (default) - Only removes the HTML elements specified via 'Remove HTML elements' option.\n\n- **Readable text** - Extracts the main contents of the webpage, without navigation and other fluff.",
+                "description": "Specify how to transform the HTML to extract meaningful content without any extra fluff, like navigation or modals. The HTML transformation happens after removing and clicking the DOM elements.\n\n- **None** (default) - Only removes the HTML elements specified via 'Remove HTML elements' option.\n\n- **Readable text** - Extracts the main contents of the webpage, without navigation and other fluff. If readability is not confident or fails, it keeps the original cleaned HTML instead of returning an empty or broken result.",
                 "default": "none",
                 "prefill": "none",
                 "editor": "hidden"

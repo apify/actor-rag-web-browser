@@ -33,9 +33,9 @@ export async function processHtml(
         : (html ?? '');
 
     let ret = null;
-    if (settings.htmlTransformer === 'readableText') {
+    if (settings.htmlTransformer === 'readableTextIfPossible' || settings.htmlTransformer === 'readableText') {
         try {
-            ret = await readableText({ html: simplified, url, options: { fallbackToNone: false } });
+            ret = await readableText({ html: simplified, url, options: { fallbackToNone: true } });
         } catch (error) {
             log.warning(`Processing of HTML failed with error:`, { error });
         }
