@@ -1,0 +1,65 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "URL to Markdown",
+        "description": "An Apify Actor that takes a URL as input and returns the content of the page in Markdown format.",
+        "version": "v1"
+    },
+    "servers": [
+        {
+            "url": "https://url-to-markdown.apify.actor"
+        }
+    ],
+    "paths": {
+        "/fetch": {
+            "get": {
+                "operationId": "apify_url-to-markdown",
+                "x-openai-isConsequential": false,
+                "description": "An Apify Actor that takes a URL as input and returns the content of the page in Markdown format.",
+                "summary": "An Apify Actor that takes a URL as input and returns the content of the page in Markdown format.",
+                "parameters": [
+                    {
+                        "name": "url",
+                        "in": "query",
+                        "description": "Enter the URL of a specific web page to extract its content in Markdown format.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "scrapingTool",
+                        "in": "query",
+                        "description": "Select the scraping mode for extracting the target web pages.\n\nThe Raw HTTP mode (default) is the fastest, but can't handle JavaScript.\n\nThe Browser mode is more powerful, can handle JavaScript heavy websites, but costs more.",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "raw-http",
+                                "browser-playwright"
+                            ],
+                            "default": "raw-http"
+                        }
+                    },
+                    {
+                        "name": "proxyConfiguration",
+                        "in": "query",
+                        "description": "Apify Proxy configuration used for scraping the target web pages.",
+                        "required": false,
+                        "schema": {
+                            "type": "object",
+                            "default": {
+                                "useApifyProxy": true
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        }
+    }
+}

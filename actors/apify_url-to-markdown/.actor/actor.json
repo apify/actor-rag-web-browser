@@ -6,6 +6,8 @@
     "version": "1.0",
     "input": "./input_schema.json",
 	"output": "./output_schema.json",
+    "usesStandbyMode": true,
+    "webServerSchema": "../../../docs/url-to-markdown-standby-openapi-3.1.0.json",
     "defaultMemoryMbytes": 2048,
     "minMemoryMbytes": 256,
     "maxMemoryMbytes": 32768,

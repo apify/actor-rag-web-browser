@@ -6,6 +6,8 @@
     "version": "1.0",
     "input": "./input_schema.json",
     "output": "./output_schema.json",
+    "usesStandbyMode": true,
+    "webServerSchema": "../../../docs/standby-openapi-3.1.0.json",
     "dockerContextDir": "../../..",
     "changelog": "../CHANGELOG.md",
     "dockerfile": "../../../Dockerfile",
