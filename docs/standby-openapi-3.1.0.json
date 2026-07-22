@@ -84,9 +84,20 @@
                         "schema": {
                             "type": "integer",
                             "minimum": 0,
-                            "maximum": 3,
-                            "default": 1
+                            "maximum": 5,
+                            "default": 2
                         }
+                    },
+                    {
+                        "name": "proxyConfiguration",
+                        "in": "query",
+                        "description": "Apify Proxy configuration used for scraping the target web pages, as a JSON-encoded object string.",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "default": "{\"useApifyProxy\": true}"
+                        },
+                        "example": "{\"useApifyProxy\": true}"
                     },
                     {
                         "name": "scrapingTool",
