@@ -33,7 +33,7 @@ export async function processHtml(
         : (html ?? '');
 
     let ret = null;
-    if (settings.htmlTransformer === 'readableTextIfPossible' || settings.htmlTransformer === 'readableText') {
+    if (settings.htmlTransformer === 'readableText') {
         try {
             ret = await readableText({ html: simplified, url, options: { fallbackToNone: true } });
         } catch (error) {
