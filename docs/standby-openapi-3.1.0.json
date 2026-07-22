@@ -2,7 +2,7 @@
     "openapi": "3.1.0",
     "info": {
         "title": "RAG Web Browser",
-        "description": "Web browser for OpenAI Assistants API and RAG pipelines, similar to a web browser in ChatGPT. It queries Google Search, scrapes the top N pages from the results, and returns their cleaned content as Markdown for further processing by an LLM.",
+        "description": "Queries Google Search, scrapes the top N pages from the results, and returns their cleaned content as Markdown for further processing by an LLM. If the `query` parameter is a URL, the Actor fetches only that URL instead of performing a search.",
         "version": "v1"
     },
     "servers": [
@@ -15,8 +15,8 @@
             "get": {
                 "operationId": "apify_rag-web-browser",
                 "x-openai-isConsequential": false,
-                "description": "Web browser for OpenAI Assistants API and RAG pipelines, similar to a web browser in ChatGPT. It queries Google Search, scrapes the top N pages from the results, and returns their cleaned content as Markdown for further processing by an LLM.",
-                "summary": "Web browser for OpenAI Assistants API and RAG pipelines, similar to a web browser in ChatGPT. It queries Google Search, scrapes the top N pages from the results, and returns their cleaned content as Markdown for further processing by an LLM.",
+                "description": "Queries Google Search, scrapes the top N pages from the results, and returns their cleaned content as Markdown for further processing by an LLM. If the `query` parameter is a URL, the Actor fetches only that URL instead of performing a search.",
+                "summary": "Queries Google Search, scrapes the top N pages from the results, and returns their cleaned content as Markdown for further processing by an LLM. If the `query` parameter is a URL, the Actor fetches only that URL instead of performing a search.",
                 "parameters": [
                     {
                         "name": "query",

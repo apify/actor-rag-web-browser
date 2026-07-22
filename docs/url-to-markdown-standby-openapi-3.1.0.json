@@ -15,8 +15,8 @@
             "get": {
                 "operationId": "apify_url-to-markdown",
                 "x-openai-isConsequential": false,
-                "description": "An Apify Actor that takes a URL as input and returns the content of the page in Markdown format.",
-                "summary": "An Apify Actor that takes a URL as input and returns the content of the page in Markdown format.",
+                "description": "Fetches the web page at the given URL and returns its content converted to Markdown.",
+                "summary": "Fetches the web page at the given URL and returns its content converted to Markdown.",
                 "parameters": [
                     {
                         "name": "url",
