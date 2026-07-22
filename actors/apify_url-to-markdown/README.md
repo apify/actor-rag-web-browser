@@ -1,4 +1,4 @@
-# URL to Markdown 
+# URL to Markdown
 Extract content from any URL and convert it into clean Markdown ready for large language models (LLMs). This is ideal for retrieval-augmented generation (RAG) pipelines, AI training data, and knowledge-base ingestion.
 
 ## How to use URL to Markdown Converter
@@ -69,6 +69,12 @@ Top integrations to look at are:
 - [LangChain](https://github.com/hwchase17/langchain): the most popular framework for developing applications powered by language models
 - [Pinecone](https://apify.com/apify/pinecone-integration): a vector database to store the crawled data for semantic search.
 - [OpenRouter](https://apify.com/apify/openrouter): give you access to multiple AI models through a unified OpenAI-compatible interface
+
+### OpenAPI schema
+
+URL to Markdown also runs as a [Standby web server](https://docs.apify.com/platform/actors/running/standby), so you can send an HTTP GET request to its `/fetch` endpoint instead of running the Actor normally.
+
+Here you can find the [OpenAPI 3.1.0 schema](https://apify.com/apify/url-to-markdown/api/openapi) for the Standby web server. Note that the OpenAPI definition contains all available query parameters, but only `url` is required.
 
 ## FAQ
 ### Why convert URLs to markdown?
