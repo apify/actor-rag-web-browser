@@ -5,6 +5,7 @@ import express, { type Request, type Response } from 'express';
 import { Routes } from './const.js';
 import { McpServer } from './mcp/server.js';
 import { getMiniActor } from './mini-actors.js';
+import { logRequest } from './request-logger.js';
 import { handleSearchRequest } from './search.js';
 import { extractUserAuthorization } from './utils.js';
 
@@ -20,6 +21,12 @@ export function createServer(): express.Express {
     app.get('/', async (req, res) => {
         log.info(`Received GET message at: ${req.url}`);
         res.status(200).json({ message: `Actor is running in Standby mode. ${HELP_MESSAGE}` });
+    });
+
+    // Logs every request to the routes below (never reached by '/', which responds without calling next()).
+    app.use((req, _res, next) => {
+        logRequest(req.path, req.query as Record<string, unknown>);
+        next();
     });
 
     app.get(miniActor.route, async (req: Request, res: Response) => {
