@@ -44,14 +44,13 @@
                     {
                         "name": "proxyConfiguration",
                         "in": "query",
-                        "description": "Apify Proxy configuration used for scraping the target web pages.",
+                        "description": "Apify Proxy configuration used for scraping the target web pages, as a JSON-encoded object string.",
                         "required": false,
                         "schema": {
-                            "type": "object",
-                            "default": {
-                                "useApifyProxy": true
-                            }
-                        }
+                            "type": "string",
+                            "default": "{\"useApifyProxy\": true}"
+                        },
+                        "example": "{\"useApifyProxy\": true}"
                     }
                 ],
                 "responses": {
