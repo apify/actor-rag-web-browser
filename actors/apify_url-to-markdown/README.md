@@ -72,7 +72,7 @@ Top integrations to look at are:
 
 ### OpenAPI schema
 
-URL to Markdown also runs as a [Standby web server](https://docs.apify.com/platform/actors/running/standby), so you can send an HTTP GET request to its `/fetch` endpoint instead of running the Actor normally.
+URL to Markdown also runs as a [Standby web server](https://docs.apify.com/actors/running/standby), so you can send an HTTP GET request to its `/fetch` endpoint instead of running the Actor normally.
 
 Here you can find the [OpenAPI 3.1.0 schema](https://apify.com/apify/url-to-markdown/endpoints) for the Standby web server. Note that the OpenAPI definition contains all available query parameters, but only `url` is required.
 

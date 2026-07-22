@@ -86,7 +86,7 @@ Also, one Actor run can only handle one query, which isn't efficient.
 
 ### Standby web server
 
-The Actor also supports the [**Standby mode**](https://docs.apify.com/platform/actors/running/standby),
+The Actor also supports the [**Standby mode**](https://docs.apify.com/actors/running/standby),
 where it runs an HTTP web server that receives requests with the search phrases and responds with the extracted web content.
 This mode is preferred for production applications, because if the Actor is already running, it will
 return the results much faster. Additionally, in the Standby mode the Actor can handle multiple requests
@@ -242,7 +242,7 @@ Additionally, you can adjust the following query parameters to reduce the respon
 ### Cost vs. throughput
 
 When running the RAG Web Browser in Standby web server, the Actor can process a number of requests in parallel.
-This number is determined by the following [Standby mode](https://docs.apify.com/platform/actors/running/standby) settings:
+This number is determined by the following [Standby mode](https://docs.apify.com/actors/running/standby) settings:
 
 - **Max requests per run** and **Desired requests per run** - Determine how many requests can be sent by the system to one Actor run.
 - **Memory** - Determines how much memory and CPU resources the Actor run has available, and this how many web pages it can open and process in parallel.
