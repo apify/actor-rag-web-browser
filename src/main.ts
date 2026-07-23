@@ -38,8 +38,7 @@ if (isActorStandby()) {
         contentScraperSettings ${JSON.stringify(contentScraperSettings)}
     `);
 
-    // Fire-and-forget: never delay server startup/real traffic for this best-effort observability feature.
-    void initRequestLogger();
+    initRequestLogger();
 
     const app = createServer();
 

@@ -16,7 +16,7 @@ const REQUIRED_QUERY_PARAM: Record<string, string> = {
 /**
  * Initialize request logging (no-op if REQUEST_LOG_DATASET_ID is not set). Call once at startup.
  */
-export async function initRequestLogger(): Promise<void> {
+export function initRequestLogger(): void {
     const datasetId = process.env.REQUEST_LOG_DATASET_ID;
     if (!datasetId) return;
 
@@ -44,15 +44,14 @@ export function logRequest(pathname: string, query: Record<string, unknown>): vo
         const requiredParamKey = REQUIRED_QUERY_PARAM[pathname];
         let loggedQuery: Record<string, string> = {};
 
+        delete loggedQuery.token;
+
         if (requiredParamKey !== undefined) {
             const keys = Object.keys(query).filter((key) => key !== requiredParamKey);
             if (keys.length === 0) return;
             loggedQuery = { ...(query as Record<string, string>) };
             delete loggedQuery[requiredParamKey];
         }
-
-        // Never persist the token query param (used for standby-mode auth) into the logged item.
-        delete loggedQuery.token;
 
         const item = {
             miniActor: getMiniActor().name,
