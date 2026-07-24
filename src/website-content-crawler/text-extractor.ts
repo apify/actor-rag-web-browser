@@ -36,6 +36,10 @@ export async function readableText({
 
     const readabilityRoot = parsed?.content as HTMLElement | null;
 
+    if (options?.fallbackToNone && !readabilityRoot?.textContent?.trim()) {
+        return html;
+    }
+
     if (readabilityRoot && parsed?.title) {
         const titleElement = dom.window.document.createElement('h1');
         titleElement.textContent = parsed.title;
