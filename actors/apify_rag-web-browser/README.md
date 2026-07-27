@@ -15,6 +15,7 @@ The extracted text can then be injected into prompts and retrieval augmented gen
 - 🔄 **Flexible scraping** with Browser mode for complex websites or Plain HTML mode for faster scraping
 - 🕷 Automatically **bypasses anti-scraping protections** using proxies and browser fingerprints
 - 📝 Output formats include **Markdown**, plain text, and HTML
+- 🔗 **Links are converted to absolute URLs**, so they stay valid outside of the page they came from
 - 🔌 Supports **OpenAPI and MCP** for easy integration
 - 🪟 It's **open source**, so you can review and modify it
 

@@ -144,7 +144,9 @@ async function handleContent(
         },
         query: request.userData.query,
         text: settings.outputFormats.includes('text') ? text : undefined,
-        markdown: settings.outputFormats.includes('markdown') ? htmlToMarkdown(processedHtml) : undefined,
+        markdown: settings.outputFormats.includes('markdown')
+            ? htmlToMarkdown(processedHtml, request.loadedUrl ?? request.url)
+            : undefined,
         html: settings.outputFormats.includes('html') ? processedHtml : undefined,
     };
 

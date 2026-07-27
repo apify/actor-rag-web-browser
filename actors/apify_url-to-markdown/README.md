@@ -82,6 +82,8 @@ Markdown is the perfect format to feed large language model (LLM). It is a less 
 
 Using markdown instead of html can help you lower the AI token cost.
 
+Relative links such as `/docs` are resolved into absolute URLs against the page they were found on, so they remain valid when the markdown is passed to an LLM.
+
 
 ### Can I use URL to Markdown with the Apify API?
 The Apify API gives you programmatic access to the Apify platform. The API is organized around RESTful HTTP endpoints that enable you to manage, schedule, and run Apify Actors. The API also lets you access any datasets, monitor Actor performance, fetch results, create and update versions, and more.
