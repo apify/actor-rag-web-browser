@@ -42,6 +42,9 @@ describe('Cheerio Crawler Content Tests', () => {
                 expect(pushDataSpy).toHaveBeenCalledTimes(1);
                 expect(pushDataSpy).toHaveBeenCalledWith(expect.objectContaining({
                     text: expect.stringContaining('hello world'),
+                    metadata: expect.objectContaining({
+                        title: 'Test Page',
+                    }),
                 }));
                 successUrls.add(context.request.url);
             },
