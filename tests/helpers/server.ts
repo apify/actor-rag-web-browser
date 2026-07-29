@@ -4,16 +4,44 @@ import path from 'node:path';
 
 import express from 'express';
 
+/** Number of times the test image has been requested, used to verify that media files are not downloaded. */
+let imageRequestCount = 0;
+
+export function getImageRequestCount(): number {
+    return imageRequestCount;
+}
+
+export function resetImageRequestCount(): void {
+    imageRequestCount = 0;
+}
+
 /**
  * Creates and returns an Express server with test routes
  */
 export function createTestServer() {
     const app = express();
 
+    const sendHtml = (name: string, res: express.Response) => {
+        const htmlPath = path.join(__dirname, 'html', name);
+        res.send(fs.readFileSync(htmlPath, 'utf-8'));
+    };
+
     app.get('/basic', (_req, res) => {
-        const htmlPath = path.join(__dirname, 'html', 'basic.html');
-        const htmlContent = fs.readFileSync(htmlPath, 'utf-8');
-        res.send(htmlContent);
+        sendHtml('basic.html', res);
+    });
+
+    app.get('/with-image', (_req, res) => {
+        sendHtml('with-image.html', res);
+    });
+
+    app.get('/image.png', (_req, res) => {
+        imageRequestCount++;
+        // A 1x1 transparent PNG
+        const png = Buffer.from(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+            'base64',
+        );
+        res.type('png').send(png);
     });
 
     return app;

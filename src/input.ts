@@ -7,6 +7,7 @@ import { firefox } from 'playwright';
 import ragWebBrowserInputSchema from '../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
 import { ContentCrawlerTypes } from './const.js';
 import { UserInputError } from './errors.js';
+import { blockMediaRequests } from './media.js';
 import { getMiniActor } from './mini-actors.js';
 import type {
     ContentCrawlerOptions,
@@ -228,6 +229,9 @@ function createPlaywrightCrawlerOptions(
                 launcher: firefox,
             },
             preNavigationHooks: [
+                async ({ page }) => {
+                    await blockMediaRequests(page);
+                },
                 (_context, gotoOptions) => {
                     // eslint-disable-next-line no-param-reassign
                     gotoOptions.waitUntil = 'domcontentloaded';

@@ -7,6 +7,7 @@ import { log } from 'crawlee';
 
 import ragWebBrowserInputSchema from '../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
 import urlToMarkdownInputSchema from '../actors/apify_url-to-markdown/.actor/input_schema.json' with { type: 'json' };
+import { isMediaUrl } from './media.js';
 import type {
     ContentCrawlerUserData,
     ContentScraperSettings,
@@ -174,6 +175,8 @@ export function createRequest(
     return {
         url: result.url!,
         uniqueKey: randomId(),
+        // Media files contain no text to extract, so don't spend any bandwidth on downloading them.
+        skipNavigation: isMediaUrl(result.url!),
         userData: {
             query,
             responseId,

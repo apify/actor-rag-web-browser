@@ -8,10 +8,11 @@ import {
     it,
 } from 'vitest';
 
+import { ContentCrawlerStatus } from '../src/const.js';
 import { createAndStartContentCrawler, createAndStartSearchCrawler } from '../src/crawlers.js';
 import { processStandbyInput } from '../src/input.js';
 import { createServer } from '../src/server.js';
-import { startTestServer, stopTestServer } from './helpers/server.js';
+import { getImageRequestCount, resetImageRequestCount, startTestServer, stopTestServer } from './helpers/server.js';
 
 describe('Standby RAG tests', () => {
     let browserServer: Server;
@@ -73,5 +74,43 @@ describe('Standby RAG tests', () => {
         expect(data[0].metadata.url).toBe(`${baseUrl}/basic`);
         expect(data[0].crawl.httpStatusCode).toBe(200);
         expect(data[0].markdown).toContain('hello world');
+    });
+
+    it('standby request with a media file URL is skipped without downloading it', async () => {
+        resetImageRequestCount();
+
+        const response = await fetch(`http://localhost:${browserServerPort}/search?query=${baseUrl}/image.png`);
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.length).toBe(1);
+        expect(data[0].metadata.url).toBe(`${baseUrl}/image.png`);
+        expect(data[0].crawl.requestStatus).toBe(ContentCrawlerStatus.FAILED);
+        expect(data[0].crawl.httpStatusMessage).toBe('Skipped media file');
+        expect(getImageRequestCount()).toBe(0);
+    });
+
+    it('standby request playwright with a media file URL is skipped without downloading it', async () => {
+        resetImageRequestCount();
+
+        const response = await fetch(`http://localhost:${browserServerPort}/search?query=${baseUrl}/image.png&scrapingTool=browser-playwright`);
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.length).toBe(1);
+        expect(data[0].crawl.httpStatusMessage).toBe('Skipped media file');
+        expect(getImageRequestCount()).toBe(0);
+    });
+
+    it('standby request playwright does not download media files of the page', async () => {
+        resetImageRequestCount();
+
+        const response = await fetch(`http://localhost:${browserServerPort}/search?query=${baseUrl}/with-image&scrapingTool=browser-playwright`);
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data[0].crawl.httpStatusCode).toBe(200);
+        expect(data[0].markdown).toContain('hello world');
+        expect(getImageRequestCount()).toBe(0);
     });
 });

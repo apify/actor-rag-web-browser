@@ -224,6 +224,15 @@ Here are specific situations that might occur when the timeout is reached:
   => the Actor extracts content from the currently loaded HTML
 
 
+### Media files
+
+Media files carry no text for the LLM, so the Actor never downloads them:
+
+- Images, audio, video, and fonts of the scraped page are blocked in Browser mode (`scrapingTool=browser-playwright`).
+  This saves bandwidth and often speeds up the page load, and it has no effect on the extracted content.
+- Search results (and a `query` that is a URL) pointing directly to a media file, e.g. `https://example.com/video.mp4`,
+  are not crawled at all. Such a result is returned with an empty text and `Skipped media file` as the HTTP status message.
+
 ### Reducing response time
 
 For low-latency applications, it's recommended to run the RAG Web Browser in Standby mode

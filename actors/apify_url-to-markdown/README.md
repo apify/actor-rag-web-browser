@@ -83,6 +83,9 @@ Markdown is the perfect format to feed large language model (LLM). It is a less 
 Using markdown instead of html can help you lower the AI token cost.
 
 
+### What happens with media files?
+Media files carry no text to convert, so they are never downloaded. Images, audio, video, and fonts of the converted page are blocked in the Browser mode, and a URL pointing directly to a media file, e.g. `https://example.com/video.mp4`, is not fetched at all — the output contains no content and `Skipped media file` as the HTTP status message.
+
 ### Can I use URL to Markdown with the Apify API?
 The Apify API gives you programmatic access to the Apify platform. The API is organized around RESTful HTTP endpoints that enable you to manage, schedule, and run Apify Actors. The API also lets you access any datasets, monitor Actor performance, fetch results, create and update versions, and more.
 
