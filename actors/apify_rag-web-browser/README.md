@@ -16,6 +16,7 @@ The extracted text can then be injected into prompts and retrieval augmented gen
 - 🕷 Automatically **bypasses anti-scraping protections** using proxies and browser fingerprints
 - 📝 Output formats include **Markdown**, plain text, and HTML
 - 🔗 **Links are converted to absolute URLs**, so they stay valid outside of the page they came from
+- 🪗 **Collapsed sections are expanded** in Browser mode, so their content is not missing from the output
 - 🔌 Supports **OpenAPI and MCP** for easy integration
 - 🪟 It's **open source**, so you can review and modify it
 
@@ -233,6 +234,19 @@ Media files carry no text for the LLM, so the Actor never downloads them:
   This saves bandwidth and often speeds up the page load, and it has no effect on the extracted content.
 - Search results (and a `query` that is a URL) pointing directly to a media file, e.g. `https://example.com/video.mp4`,
   are not crawled at all. Such a result is returned with an empty text and `Skipped media file` as the HTTP status message.
+
+### Collapsed content
+
+Some web pages keep parts of their content hidden until the reader expands them, e.g. accordions or
+FAQ sections, and add it to the page only when it's clicked. To capture such content, the Actor clicks
+the collapsed elements of the page, i.e. those matching the `[aria-expanded="false"]` CSS selector,
+in Browser mode (`scrapingTool=browser-playwright`) before it extracts the content.
+
+Elements linking to another page are not clicked, so that the Actor stays on the page it was asked
+to extract.
+
+Note that clicking costs about half a second on pages that have such elements, and that content of
+expanded navigation menus can end up in the output as well.
 
 ### Reducing response time
 

@@ -8,21 +8,34 @@
 <body>
     <p>always visible content</p>
 
-    <!-- The panel content is added to the DOM only after the toggle is clicked -->
-    <button id="toggle" aria-expanded="false" aria-controls="panel">Show details</button>
+    <button id="toggle">Show details</button>
     <div id="panel"></div>
 
-    <!-- Links leading to another page must not be clicked, otherwise we navigate away from the page -->
-    <a id="link" href="/basic" aria-expanded="false">Link to another page</a>
+    <a id="anchor" href="#anchor-panel">Show more</a>
+    <div id="anchor-panel"></div>
 
-    <!-- Same-page anchors are clicked, they only change the URL hash -->
-    <a id="anchor" href="#panel" aria-expanded="false">Anchor to the panel</a>
+    <a id="link" href="/basic#section">Link to another page</a>
+    <div id="link-panel"></div>
 
     <script>
-        document.getElementById('toggle').addEventListener('click', (event) => {
-            event.currentTarget.setAttribute('aria-expanded', 'true');
-            document.getElementById('panel').textContent = 'collapsed panel content';
-        });
+        // Collapsed content is added to the page only when clicked, and takes a moment to render
+        const reveal = (panelId, text) => {
+            window.setTimeout(() => {
+                document.getElementById(panelId).textContent = text;
+            }, 150);
+        };
+
+        document.getElementById('toggle').addEventListener('click', () => reveal('panel', 'collapsed panel content'));
+        document.getElementById('anchor').addEventListener('click', () => reveal('anchor-panel', 'anchor panel content'));
+        document.getElementById('link').addEventListener('click', () => reveal('link-panel', 'link panel content'));
+
+        // The elements become collapsed only once the page is interactive, so they cannot be clicked
+        // before the Actor waits for the dynamic content
+        window.setTimeout(() => {
+            for (const id of ['toggle', 'anchor', 'link']) {
+                document.getElementById(id).setAttribute('aria-expanded', 'false');
+            }
+        }, 200);
     </script>
 </body>
 </html>

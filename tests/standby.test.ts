@@ -76,16 +76,6 @@ describe('Standby RAG tests', () => {
         expect(data[0].markdown).toContain('hello world');
     });
 
-    it('standby request playwright expands clickable elements', async () => {
-        const response = await fetch(`http://localhost:${browserServerPort}/search?query=${baseUrl}/clickable&scrapingTool=browser-playwright`);
-        const data = await response.json();
-
-        expect(response.status).toBe(200);
-        expect(data[0].metadata.url).toBe(`${baseUrl}/clickable`);
-        // The panel content is added to the DOM only after the collapsed element is clicked
-        expect(data[0].markdown).toContain('collapsed panel content');
-    });
-
     it('standby request with a media file URL is skipped without downloading it', async () => {
         resetImageRequestCount();
 

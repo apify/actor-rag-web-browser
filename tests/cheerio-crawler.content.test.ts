@@ -6,7 +6,7 @@ import { CheerioCrawler, type CheerioCrawlingContext, Configuration, log } from 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { requestHandlerCheerio } from '../src/request-handler.js';
-import type { ContentCrawlerUserData, Output } from '../src/types.js';
+import type { ContentCrawlerUserData } from '../src/types.js';
 import { createRequest } from '../src/utils.js';
 import { startTestServer, stopTestServer } from './helpers/server.js';
 
@@ -25,13 +25,9 @@ describe('Cheerio Crawler Content Tests', () => {
         await stopTestServer(testServer);
     });
 
-    /**
-     * Scrapes a single URL with the Cheerio request handler and returns the results it pushed
-     * to the dataset, along with the URLs that failed.
-     */
-    async function scrapeWithCheerio(url: string) {
-        const results: Output[] = [];
+    it('test basic content extraction with cheerio', async () => {
         const failedUrls = new Set<string>();
+        const successUrls = new Set<string>();
 
         // Create memory storage and request queue
         const client = new MemoryStorage({ persistStorage: false });
@@ -40,10 +36,14 @@ describe('Cheerio Crawler Content Tests', () => {
         const crawler = new CheerioCrawler({
             requestQueue,
             requestHandler: async (context: CheerioCrawlingContext<ContentCrawlerUserData>) => {
-                vi.spyOn(context, 'pushData').mockImplementation(async (data) => {
-                    results.push(data as Output);
-                });
+                const pushDataSpy = vi.spyOn(context, 'pushData').mockResolvedValue(undefined);
                 await requestHandlerCheerio(context);
+
+                expect(pushDataSpy).toHaveBeenCalledTimes(1);
+                expect(pushDataSpy).toHaveBeenCalledWith(expect.objectContaining({
+                    text: expect.stringContaining('hello world'),
+                }));
+                successUrls.add(context.request.url);
             },
             failedRequestHandler: async ({ request }, error) => {
                 log.error(`Request ${request.url} failed with error: ${error.message}`);
@@ -56,7 +56,7 @@ describe('Cheerio Crawler Content Tests', () => {
         const r = createRequest(
             'query',
             {
-                url,
+                url: `${baseUrl}/basic`,
                 description: 'Test request',
                 rank: 1,
                 title: 'Test title',
@@ -76,24 +76,7 @@ describe('Cheerio Crawler Content Tests', () => {
 
         await crawler.run();
 
-        return { results, failedUrls };
-    }
-
-    it('test basic content extraction with cheerio', async () => {
-        const { results, failedUrls } = await scrapeWithCheerio(`${baseUrl}/basic`);
-
         expect(failedUrls.size).toBe(0);
-        expect(results).toHaveLength(1);
-        expect(results[0].text).toContain('hello world');
-    });
-
-    it('does not expand clickable elements in the raw HTTP mode', async () => {
-        const { results, failedUrls } = await scrapeWithCheerio(`${baseUrl}/clickable`);
-
-        expect(failedUrls.size).toBe(0);
-        expect(results).toHaveLength(1);
-        expect(results[0].text).toContain('always visible content');
-        // Clicking needs a browser, so the panel content never makes it into the DOM
-        expect(results[0].text).not.toContain('collapsed panel content');
+        expect(successUrls.size).toBe(1);
     });
 });

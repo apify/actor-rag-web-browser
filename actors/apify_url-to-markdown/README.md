@@ -88,6 +88,9 @@ Relative links such as `/docs` are resolved into absolute URLs against the page 
 ### What happens with media files?
 Media files carry no text to convert, so they are never downloaded. Images, audio, video, and fonts of the converted page are blocked in the Browser mode, and a URL pointing directly to a media file, e.g. `https://example.com/video.mp4`, is not fetched at all — the output contains no content and `Skipped media file` as the HTTP status message.
 
+### What happens with collapsed content?
+Content that a page adds only when the reader expands it, e.g. accordions or FAQ sections, would be missing from the markdown. To capture it, the Browser mode clicks the collapsed elements of the page, i.e. those matching the `[aria-expanded="false"]` CSS selector, before converting it. Elements linking to another page are not clicked, so that the Actor stays on the page it was asked to convert.
+
 ### Can I use URL to Markdown with the Apify API?
 The Apify API gives you programmatic access to the Apify platform. The API is organized around RESTful HTTP endpoints that enable you to manage, schedule, and run Apify Actors. The API also lets you access any datasets, monitor Actor performance, fetch results, create and update versions, and more.
 

@@ -11,10 +11,9 @@ import { addTimeMeasureEvent, isActorStandby, transformTimeMeasuresToRelative } 
 import { processHtml } from './website-content-crawler/html-processing.js';
 import { htmlToMarkdown } from './website-content-crawler/markdown.js';
 
-/** Collapsed elements that are clicked to expand their content, same default as Website Content Crawler. */
+/** Same as the default of the `clickElementsCssSelector` input of Website Content Crawler. */
 const CLICK_ELEMENTS_CSS_SELECTOR = '[aria-expanded="false"]';
 
-/** How long to wait for the content expanded by clicking to render. */
 const CLICK_RENDER_WAIT_MS = 500;
 
 let ACTOR_TIMEOUT_AT: number | undefined;
@@ -80,44 +79,27 @@ export async function waitForDynamicContent(context: PlaywrightCrawlingContext, 
  * Tries to expand collapsed content by clicking on it, so that its text is included in the extracted
  * content, e.g. https://www.checkout.com/docs/support/reporting (adapted from: Website Content Crawler).
  *
- * Failed clicks are only logged, the content is extracted with whatever got expanded. If the clicking
- * navigates the page away, the page is loaded again, so that we never extract a different page.
+ * A click handler can still navigate the page with JavaScript, and then the content is extracted from
+ * the page it navigated to, the same as in Website Content Crawler.
  */
 async function expandClickableElements(page: PlaywrightCrawlingContext['page'], cssSelector: string) {
-    const urlBeforeClicking = page.url();
-
     const clickedCount = await page.evaluate((selector) => {
-        // Only click on elements that don't have the `href` attribute or that lead to the current page,
-        // so that we don't navigate away from the page
+        // only click on items that don't have `href` attribute or they lead to the current page
         const elements = [...document.querySelectorAll(selector)].filter((el) => {
             const href = el.getAttribute('href');
-            return !href || href.startsWith('#');
+            return (!href || href.startsWith('#')) && typeof (el as HTMLElement).click === 'function';
         });
 
         for (const el of elements) {
-            (el as HTMLElement).click?.();
+            (el as HTMLElement).click();
         }
 
         return elements.length;
-    }, cssSelector).catch((err: unknown) => {
-        log.warning(`Failed to expand clickable elements: ${err instanceof Error ? err.message : String(err)}`);
-        // Some of the elements might have been clicked before the failure
-        return null;
-    });
+    }, cssSelector);
 
-    // Nothing was clicked, so there is nothing to wait for and the page could not have navigated
-    if (clickedCount === 0) {
-        return;
-    }
-
-    log.debug(`Clicked ${clickedCount ?? 'some'} element(s) matching \`${cssSelector}\``);
-    await sleep(CLICK_RENDER_WAIT_MS);
-
-    // A click handler can navigate the page with JavaScript, which no CSS selector can guard against.
-    // Content of a different page would be worse than content without the expanded sections, so undo it.
-    if (page.url().split('#')[0] !== urlBeforeClicking.split('#')[0]) {
-        log.warning(`Clicking navigated the page to ${page.url()}, loading ${urlBeforeClicking} again`);
-        await page.goto(urlBeforeClicking, { waitUntil: 'domcontentloaded' });
+    if (clickedCount > 0) {
+        log.debug(`Clicked ${clickedCount} element(s) matching \`${cssSelector}\``);
+        await sleep(CLICK_RENDER_WAIT_MS);
     }
 }
 

@@ -28,8 +28,7 @@ describe('Playwright Crawler Content Tests', () => {
     });
 
     /**
-     * Scrapes a single URL with the Playwright request handler and returns the results it pushed
-     * to the dataset, along with the URLs that failed.
+     * Scrapes a single URL and returns the results the request handler pushed to the dataset.
      */
     async function scrapeWithPlaywright(url: string, settings: Partial<ContentScraperSettings> = {}) {
         const results: Output[] = [];
@@ -105,22 +104,11 @@ describe('Playwright Crawler Content Tests', () => {
         expect(failedUrls.size).toBe(0);
         expect(results).toHaveLength(1);
         expect(results[0].text).toContain('always visible content');
-        // The panel content is added to the DOM only after the toggle is clicked
+        // Content of every collapsed element, which is added to the page only once it's clicked
         expect(results[0].text).toContain('collapsed panel content');
-        // Links to other pages must not be clicked, i.e. we must stay on the original page
-        expect(results[0].text).not.toContain('hello world');
-    });
-
-    it('returns content of the original page when clicking navigates away', async () => {
-        const { results, failedUrls } = await scrapeWithPlaywright(`${baseUrl}/clickable-js-navigation`, {
-            dynamicContentWaitSecs: 2,
-        });
-
-        // A navigation triggered by JavaScript cannot be prevented by the selector, so the page is
-        // loaded again instead of returning the content of the page it navigated to
-        expect(failedUrls.size).toBe(0);
-        expect(results).toHaveLength(1);
-        expect(results[0].text).toContain('page navigating on click');
+        expect(results[0].text).toContain('anchor panel content');
+        // The link leading to another page must not be clicked, not even to its fragment
+        expect(results[0].text).not.toContain('link panel content');
         expect(results[0].text).not.toContain('hello world');
     });
 });
