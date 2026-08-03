@@ -69,6 +69,7 @@ export interface TimeMeasure {
         | 'error'
         | 'playwright-request-start'
         | 'playwright-wait-dynamic-content'
+        | 'playwright-expand-clickable-elements'
         | 'playwright-parse-with-cheerio'
         | 'playwright-process-html'
         | 'playwright-remove-cookie'

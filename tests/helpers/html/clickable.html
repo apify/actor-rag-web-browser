@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clickable Test Page</title>
+</head>
+<body>
+    <p>always visible content</p>
+
+    <!-- The panel content is added to the DOM only after the toggle is clicked -->
+    <button id="toggle" aria-expanded="false" aria-controls="panel">Show details</button>
+    <div id="panel"></div>
+
+    <!-- Links leading to another page must not be clicked, otherwise we navigate away from the page -->
+    <a id="link" href="/basic" aria-expanded="false">Link to another page</a>
+
+    <!-- Same-page anchors are clicked, they only change the URL hash -->
+    <a id="anchor" href="#panel" aria-expanded="false">Anchor to the panel</a>
+
+    <script>
+        document.getElementById('toggle').addEventListener('click', (event) => {
+            event.currentTarget.setAttribute('aria-expanded', 'true');
+            document.getElementById('panel').textContent = 'collapsed panel content';
+        });
+    </script>
+</body>
+</html>

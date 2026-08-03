@@ -30,6 +30,14 @@ export function createTestServer() {
         sendHtml('basic.html', res);
     });
 
+    app.get('/clickable', (_req, res) => {
+        sendHtml('clickable.html', res);
+    });
+
+    app.get('/clickable-js-navigation', (_req, res) => {
+        sendHtml('clickable-js-navigation.html', res);
+    });
+
     app.get('/with-image', (_req, res) => {
         sendHtml('with-image.html', res);
     });

@@ -2,7 +2,8 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
     test: {
-        testTimeout: 15000,
+        // Generous timeout because most of the tests launch a browser, which is slow on a cold start
+        testTimeout: 30000,
         globals: true,
         environment: 'node',
         include: ['tests/**/*.test.ts'],
