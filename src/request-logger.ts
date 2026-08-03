@@ -44,13 +44,12 @@ export function logRequest(pathname: string, query: Record<string, unknown>): vo
         const requiredParamKey = REQUIRED_QUERY_PARAM[pathname];
         let loggedQuery: Record<string, string> = {};
 
-        delete loggedQuery.token;
-
         if (requiredParamKey !== undefined) {
-            const keys = Object.keys(query).filter((key) => key !== requiredParamKey);
+            const keys = Object.keys(query).filter((key) => key !== requiredParamKey && key !== 'token');
             if (keys.length === 0) return;
             loggedQuery = { ...(query as Record<string, string>) };
             delete loggedQuery[requiredParamKey];
+            delete loggedQuery.token;
         }
 
         const item = {
