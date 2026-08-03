@@ -10,7 +10,7 @@
         "@crawlee/memory-storage": "^3.11.1",
         "@ghostery/adblocker-playwright": "^2.5.2",
         "@modelcontextprotocol/sdk": "^1.0.4",
-        "@mozilla/readability": "^0.5.0",
+        "@mozilla/readability": "^0.6.0",
         "apify": "^3.7.2",
         "cheerio": "^1.0.0-rc.12",
         "crawlee": "^3.15.3",
