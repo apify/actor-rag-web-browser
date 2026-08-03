@@ -1,10 +1,13 @@
 import type { Server } from 'node:http';
 
+import { ImpitHttpClient } from '@crawlee/impit-client';
 import { MemoryStorage } from '@crawlee/memory-storage';
 import { RequestQueue } from 'apify';
 import { CheerioCrawler, type CheerioCrawlingContext, Configuration, log } from 'crawlee';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { ContentCrawlerTypes } from '../src/const.js';
+import { createAndStartContentCrawler } from '../src/crawlers.js';
 import { requestHandlerCheerio } from '../src/request-handler.js';
 import type { ContentCrawlerUserData } from '../src/types.js';
 import { createRequest } from '../src/utils.js';
@@ -81,5 +84,14 @@ describe('Cheerio Crawler Content Tests', () => {
 
         expect(failedUrls.size).toBe(0);
         expect(successUrls.size).toBe(1);
+    });
+
+    it('test the crawler is created with the impit HTTP client', async () => {
+        const { crawler } = await createAndStartContentCrawler(
+            { type: ContentCrawlerTypes.CHEERIO, crawlerOptions: {} },
+            false,
+        );
+
+        expect(Reflect.get(crawler!, 'httpClient')).toBeInstanceOf(ImpitHttpClient);
     });
 });

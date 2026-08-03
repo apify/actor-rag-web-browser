@@ -4,9 +4,10 @@
     "type": "module",
     "description": "RAG Web Browser - run Google Search queries and extract content from the top search results.",
     "engines": {
-        "node": ">=18.0.0"
+        "node": ">=20.0.0"
     },
     "dependencies": {
+        "@crawlee/impit-client": "^3.17.0",
         "@crawlee/memory-storage": "^3.11.1",
         "@ghostery/adblocker-playwright": "^2.5.2",
         "@modelcontextprotocol/sdk": "^1.0.4",

@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
+import { ImpitHttpClient } from '@crawlee/impit-client';
 import { MemoryStorage } from '@crawlee/memory-storage';
 import { PlaywrightBlocker } from '@ghostery/adblocker-playwright';
 import { Actor, RequestQueue } from 'apify';
@@ -25,6 +26,12 @@ import { addTimeMeasureEvent, createRequest, createSearchRequest, isActorStandby
 
 const crawlers = new Map<string, CheerioCrawler | PlaywrightCrawler>();
 const client = new MemoryStorage({ persistStorage: false });
+
+const contentCrawlerHttpClient = new ImpitHttpClient({
+    browser: 'firefox144',
+    vanillaFallback: true,
+    ignoreTlsErrors: true,
+});
 
 let ghosteryBlocker: PlaywrightBlocker | undefined;
 
@@ -241,6 +248,7 @@ async function createCheerioContentCrawler(
     return new CheerioCrawler({
         ...crawlerOptions,
         keepAlive: crawlerOptions.keepAlive,
+        httpClient: contentCrawlerHttpClient,
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
         requestHandler: (async (context) => {
             const typedContext = context as unknown as CheerioCrawlingContext<ContentCrawlerUserData>;
