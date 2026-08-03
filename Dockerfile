@@ -25,7 +25,7 @@ RUN npm run build
 RUN npm run build:playwright-blockers
 
 # Create final image
-FROM apify/actor-node-playwright-firefox:22-1.54.1
+FROM apify/actor-node-playwright-firefox:22-1.55.1
 
 # Copy just package.json and package-lock.json
 # to speed up the build using Docker layer cache.
