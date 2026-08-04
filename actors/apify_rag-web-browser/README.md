@@ -63,7 +63,17 @@ the web page content directly like this:
         "url": "https://openai.com/index/introducing-chatgpt-search/",
         "title": "Introducing ChatGPT search | OpenAI",
         "description": "Get fast, timely answers with links to relevant web sources",
-        "languageCode": "en-US"
+        "languageCode": "en-US",
+        "canonicalUrl": "https://openai.com/index/introducing-chatgpt-search/",
+        "openGraph": [
+            { "property": "og:title", "content": "Introducing ChatGPT search" },
+            { "property": "og:description", "content": "Get fast, timely answers with links to relevant web sources" },
+            { "property": "og:url", "content": "https://openai.com/index/introducing-chatgpt-search/" }
+        ],
+        "headers": {
+            "content-type": "text/html; charset=utf-8",
+            "cache-control": "public, max-age=0, must-revalidate"
+        }
     },
     "markdown": "# Introducing ChatGPT search | OpenAI\n\nGet fast, timely answers with links to relevant web sources.\n\nChatGPT can now search the web in a much better way than before. ..."
 }]

@@ -1,3 +1,5 @@
+import type { IncomingHttpHeaders } from 'node:http';
+
 import type { ProxyConfigurationOptions } from 'apify';
 import type { CheerioCrawlerOptions, PlaywrightCrawlerOptions } from 'crawlee';
 
@@ -44,6 +46,11 @@ export type RagWebBrowserInput = CommonInput & {
 export type Input = UrlToMarkdownInput | RagWebBrowserInput;
 
 export type SearchResultType = 'ORGANIC' | 'SUGGESTED';
+
+export type OpenGraphProperty = {
+    property: string;
+    content: string;
+};
 
 export type OrganicResult = {
     description?: string;
@@ -141,9 +148,14 @@ export type Output = {
         title?: string | null;
         url: string;
         redirectedUrl?: string | null;
+        canonicalUrl?: string;
         description?: string | null;
         author?: string | null;
+        keywords?: string | null;
         languageCode?: string | null;
+        openGraph?: OpenGraphProperty[];
+        jsonLd?: unknown[];
+        headers?: IncomingHttpHeaders;
     };
 };
 

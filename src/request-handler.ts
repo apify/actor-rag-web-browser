@@ -1,3 +1,5 @@
+import type { IncomingHttpHeaders } from 'node:http';
+
 import type { PlaywrightBlocker } from '@ghostery/adblocker-playwright';
 import { Actor } from 'apify';
 import { load } from 'cheerio';
@@ -8,7 +10,13 @@ import { blockMediaRequests, SKIPPED_MEDIA_FILE_MESSAGE } from './media.js';
 import { addResultToResponse, responseData, sendResponseIfFinished } from './responses.js';
 import type { ContentCrawlerUserData, Output } from './types.js';
 import { addTimeMeasureEvent, isActorStandby, transformTimeMeasuresToRelative } from './utils.js';
-import { extractTitle, processHtml } from './website-content-crawler/html-processing.js';
+import {
+    extractCanonicalUrl,
+    extractJsonLd,
+    extractOpenGraphProperties,
+    extractTitle,
+    processHtml,
+} from './website-content-crawler/html-processing.js';
 import { htmlToMarkdown } from './website-content-crawler/markdown.js';
 
 let ACTOR_TIMEOUT_AT: number | undefined;
@@ -76,6 +84,14 @@ function isValidContentType(contentType: string | undefined) {
     return ['text', 'html', 'xml'].some((type) => contentType?.includes(type));
 }
 
+/** Playwright exposes the headers through a method, but the context types also allow a plain object. */
+function getPlaywrightResponseHeaders(response: PlaywrightCrawlingContext['response']): IncomingHttpHeaders | undefined {
+    if (!response) return undefined;
+
+    const { headers }: { headers: IncomingHttpHeaders | (() => IncomingHttpHeaders) } = response;
+    return typeof headers === 'function' ? response.headers() : headers;
+}
+
 /**
  * Stores an empty result for a page we haven't extracted any content from.
  */
@@ -127,6 +143,7 @@ async function handleContent(
     $: CheerioCrawlingContext['$'],
     crawlerType: ContentCrawlerTypes,
     statusCode: number | undefined,
+    headers: IncomingHttpHeaders | undefined,
     context: PlaywrightCrawlingContext<ContentCrawlerUserData> | CheerioCrawlingContext<ContentCrawlerUserData>,
 ) {
     const { request } = context;
@@ -153,9 +170,14 @@ async function handleContent(
             author: $('meta[name=author]').first().attr('content') ?? undefined,
             title: extractTitle($),
             description: $('meta[name=description]').first().attr('content') ?? undefined,
+            keywords: $('meta[name=keywords]').first().attr('content') ?? undefined,
             languageCode: $html.first().attr('lang') ?? undefined,
             url: request.url,
             redirectedUrl: request.loadedUrl,
+            canonicalUrl: extractCanonicalUrl($, request.loadedUrl ?? request.url),
+            openGraph: extractOpenGraphProperties($),
+            jsonLd: extractJsonLd($),
+            headers,
         },
         query: request.userData.query,
         text: settings.outputFormats.includes('text') ? text : undefined,
@@ -231,14 +253,13 @@ export async function requestHandlerPlaywright(
     const $ = await context.parseWithCheerio();
     addTimeMeasureEvent(request.userData, 'playwright-parse-with-cheerio');
 
-    const headers = response?.headers instanceof Function ? response.headers() : response?.headers;
+    const headers = getPlaywrightResponseHeaders(response);
     const statusCode = response?.status();
 
-    // @ts-expect-error false-positive?
     const isValidResponse = await checkValidResponse($, headers?.['content-type'], statusCode, context);
     if (!isValidResponse) return;
 
-    await handleContent($, ContentCrawlerTypes.PLAYWRIGHT, statusCode, context);
+    await handleContent($, ContentCrawlerTypes.PLAYWRIGHT, statusCode, headers, context);
 }
 
 export async function requestHandlerCheerio(
@@ -263,7 +284,7 @@ export async function requestHandlerCheerio(
     const isValidResponse = await checkValidResponse($, response.headers['content-type'], statusCode, context);
     if (!isValidResponse) return;
 
-    await handleContent($, ContentCrawlerTypes.CHEERIO, statusCode, context);
+    await handleContent($, ContentCrawlerTypes.CHEERIO, statusCode, response.headers, context);
 }
 
 export async function failedRequestHandler(request: Request, err: Error, crawlerType: ContentCrawlerTypes) {
