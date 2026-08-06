@@ -12,6 +12,9 @@ import type { ContentCrawlerTypes } from './const.js';
  */
 type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
+/** What `Actor.createProxyConfiguration` accepts: the SDK options plus the input-schema flag. */
+export type ProxyOptions = ProxyConfigurationOptions & { useApifyProxy?: boolean };
+
 export type OutputFormats = 'text' | 'markdown' | 'html';
 export type SERPProxyGroup = 'GOOGLE_SERP' | 'SHADER';
 export type ScrapingTool = 'browser-playwright' | 'raw-http';
@@ -159,10 +162,22 @@ export type Output = {
     };
 };
 
+/**
+ * Crawler settings, paired with the proxy options they were built from. Keeping the options is what
+ * lets `getCrawlerKey` and the SERP protocol choice avoid reading the constructed
+ * `ProxyConfiguration`, whose serialization is neither stable nor free of secrets.
+ */
+export type SearchCrawlerOptions = {
+    crawlerOptions: CheerioCrawlerOptions;
+    proxyOptions: ProxyOptions;
+};
+
 export type ContentCrawlerOptions = {
     type: ContentCrawlerTypes.CHEERIO,
-    crawlerOptions: CheerioCrawlerOptions
+    crawlerOptions: CheerioCrawlerOptions,
+    proxyOptions: ProxyOptions,
 } | {
     type: ContentCrawlerTypes.PLAYWRIGHT,
-    crawlerOptions: PlaywrightCrawlerOptions
+    crawlerOptions: PlaywrightCrawlerOptions,
+    proxyOptions: ProxyOptions,
 };

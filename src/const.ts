@@ -18,6 +18,8 @@ export enum ContentCrawlerTypes {
     CHEERIO = 'cheerio',
 }
 
+export type CrawlerKind = 'search' | ContentCrawlerTypes;
+
 export const PLAYWRIGHT_REQUEST_TIMEOUT_NORMAL_MODE_SECS = 60;
 
 export const GOOGLE_STANDARD_RESULTS_PER_PAGE = 10;

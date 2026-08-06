@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import { type CheerioCrawlerOptions, log } from 'crawlee';
+import { log } from 'crawlee';
 
 import { PLAYWRIGHT_REQUEST_TIMEOUT_NORMAL_MODE_SECS } from './const.js';
 import { addContentCrawlRequest, addSearchRequest, createAndStartContentCrawler, createAndStartSearchCrawler } from './crawlers.js';
@@ -8,7 +8,15 @@ import { UserInputError } from './errors.js';
 import { processInput } from './input.js';
 import { getMiniActor } from './mini-actors.js';
 import { createResponsePromise } from './responses.js';
-import type { ContentCrawlerOptions, ContentScraperSettings, Input, Output, RagWebBrowserInput, UrlToMarkdownInput } from './types.js';
+import type {
+    ContentCrawlerOptions,
+    ContentScraperSettings,
+    Input,
+    Output,
+    RagWebBrowserInput,
+    SearchCrawlerOptions,
+    UrlToMarkdownInput,
+} from './types.js';
 import {
     addTimeMeasureEvent,
     createRequest,
@@ -26,7 +34,7 @@ import {
  */
 function prepareRequest(
     input: Input,
-    searchCrawlerOptions: CheerioCrawlerOptions,
+    searchCrawlerOptions: SearchCrawlerOptions,
     contentCrawlerKey: string,
     contentScraperSettings: ContentScraperSettings,
     userAuthorization?: string,
@@ -80,7 +88,7 @@ function prepareRequest(
                 contentScraperSettings,
                 userAuthorization,
             },
-            searchCrawlerOptions.proxyConfiguration,
+            searchCrawlerOptions.proxyOptions,
         );
 
     addTimeMeasureEvent(req.userData!, 'request-received', Date.now());
@@ -101,7 +109,7 @@ async function runSearchProcess(params: Partial<Input>, userAuthorization?: stri
     } = await processInput(params);
 
     // Set keepAlive to true to find the correct crawlers
-    searchCrawlerOptions.keepAlive = true;
+    searchCrawlerOptions.crawlerOptions.keepAlive = true;
     contentCrawlerOptions.crawlerOptions.keepAlive = true;
 
     const { key: contentCrawlerKey } = await createAndStartContentCrawler(contentCrawlerOptions);
@@ -125,9 +133,9 @@ async function runSearchProcess(params: Partial<Input>, userAuthorization?: stri
         }
         await addContentCrawlRequest(req, responseId, contentCrawlerKey);
     } else {
-        await createAndStartSearchCrawler(searchCrawlerOptions);
         // If input is a search query, run the search crawler first
-        await addSearchRequest(req, searchCrawlerOptions);
+        const { key: searchCrawlerKey } = await createAndStartSearchCrawler(searchCrawlerOptions);
+        await addSearchRequest(req, searchCrawlerKey);
     }
 
     // Return promise that resolves when all requests are processed
@@ -178,7 +186,7 @@ export async function handleModelContextProtocol(params: Partial<Input>, userAut
  */
 export async function handleSearchNormalMode(
     input: Input,
-    searchCrawlerOptions: CheerioCrawlerOptions,
+    searchCrawlerOptions: SearchCrawlerOptions,
     contentCrawlerOptions: ContentCrawlerOptions,
     contentScraperSettings: ContentScraperSettings,
 ) {
@@ -205,8 +213,8 @@ export async function handleSearchNormalMode(
         }
         await addContentCrawlRequest(req, '', contentCrawlerKey);
     } else {
-        const { crawler: searchCrawler } = await createAndStartSearchCrawler(searchCrawlerOptions, false);
-        await addSearchRequest(req, searchCrawlerOptions);
+        const { crawler: searchCrawler, key: searchCrawlerKey } = await createAndStartSearchCrawler(searchCrawlerOptions, false);
+        await addSearchRequest(req, searchCrawlerKey);
         addTimeMeasureEvent(req.userData!, 'before-cheerio-run', startedTime);
         log.info(`Running Google Search crawler with request: ${JSON.stringify(req)}`);
         await searchCrawler!.run();

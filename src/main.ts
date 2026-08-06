@@ -18,6 +18,11 @@ Actor.on('migrating', () => {
 
 const originalInput = await Actor.getInput<Partial<Input>>() ?? {} as Input;
 
+// Set once, from the run input: the level is process-wide, so letting a standby request change it
+// would leak debug output across concurrent callers. A request's own `debugMode` still controls the
+// `debug` field of its response, see `ContentScraperSettings`.
+log.setLevel(originalInput.debugMode ? log.LEVELS.DEBUG : log.LEVELS.INFO);
+
 if (isActorStandby()) {
     log.info('Actor is running in the STANDBY mode.');
 
