@@ -26,7 +26,6 @@ describe('getCrawlerKey', () => {
         expect(cheerioKey()).toMatch(/^cheerio-[0-9a-f]+$/);
     });
 
-    // The three crawlers can otherwise share a fingerprint, so the kind carries the distinction.
     it('separates the crawler kinds', () => {
         const keys = new Set([
             getCrawlerKey('search', baseOptions, {}),
@@ -47,7 +46,16 @@ describe('getCrawlerKey', () => {
     it('treats the apifyProxy* input-schema aliases as their canonical counterparts', () => {
         expect(cheerioKey({}, { apifyProxyGroups: ['RESIDENTIAL'] })).toBe(cheerioKey({}, { groups: ['RESIDENTIAL'] }));
         expect(cheerioKey({}, { apifyProxyCountry: 'US' })).toBe(cheerioKey({}, { countryCode: 'US' }));
+    });
+
+    it('collapses the useApifyProxy spellings the way the SDK does', () => {
+        const noProxy = cheerioKey({}, { useApifyProxy: false });
+        const custom = cheerioKey({}, { proxyUrls: ['http://proxy.example.com:8000'] });
+
         expect(cheerioKey({}, { useApifyProxy: true })).toBe(cheerioKey({}, {}));
+        expect(cheerioKey({}, { useApifyProxy: false, proxyUrls: ['http://proxy.example.com:8000'] })).toBe(custom);
+        expect(cheerioKey({}, { useApifyProxy: false, tieredProxyUrls: [['http://a:1']] })).toBe(noProxy);
+        expect(noProxy).not.toBe(custom);
     });
 
     it('never exposes proxy credentials, so the key is safe to log', () => {
@@ -70,7 +78,6 @@ describe('getCrawlerKey', () => {
             cheerioKey({}, { groups: ['RESIDENTIAL'] }),
             cheerioKey({}, { countryCode: 'US' }),
             cheerioKey({}, { useApifyProxy: false }),
-            // A caller supplying its own proxy password must not land on the run's own crawler.
             cheerioKey({}, { password: 'hunter2' }),
             cheerioKey({}, { proxyUrls: ['http://proxy.example.com:8000'] }),
             cheerioKey({}, { proxyUrls: ['http://other.example.com:8000'] }),
@@ -80,13 +87,11 @@ describe('getCrawlerKey', () => {
     });
 });
 
-// Regression test for https://github.com/apify/actor-rag-web-browser/issues/60.
 describe('standby requests reuse the crawlers started at boot', () => {
     process.env.ACTOR_FULL_NAME = 'apify/rag-web-browser';
 
-    // A custom proxy keeps `Actor.createProxyConfiguration` off the network, since it only checks
-    // access for Apify Proxy. Without one it returns `undefined` unless `APIFY_PROXY_PASSWORD` is
-    // set, and the content crawlers would then be keyed without a `ProxyConfiguration` at all.
+    // A custom proxy keeps `Actor.createProxyConfiguration` off the network and off
+    // `APIFY_PROXY_PASSWORD`, which it needs to return a `ProxyConfiguration` at all.
     const proxyConfiguration = { useApifyProxy: false, proxyUrls: ['http://proxy.invalid:8000'] };
     const query = (extraParams = '') => `?query=hello&proxyConfiguration=${
         encodeURIComponent(JSON.stringify(proxyConfiguration))}${extraParams}`;

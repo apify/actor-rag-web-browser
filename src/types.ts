@@ -162,11 +162,7 @@ export type Output = {
     };
 };
 
-/**
- * Crawler settings, paired with the proxy options they were built from. Keeping the options is what
- * lets `getCrawlerKey` and the SERP protocol choice avoid reading the constructed
- * `ProxyConfiguration`, whose serialization is neither stable nor free of secrets.
- */
+/** The proxy options are kept so nothing has to read them back off the constructed `ProxyConfiguration`. */
 export type SearchCrawlerOptions = {
     crawlerOptions: CheerioCrawlerOptions;
     proxyOptions: ProxyOptions;

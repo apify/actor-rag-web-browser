@@ -137,7 +137,6 @@ export function createSearchRequest(
     const currentPage = userData.currentPage ?? 0;
     const totalPages = userData.totalPages ?? Math.ceil(userData.maxResults / 10) + 1;
 
-    // Apify's Google SERP proxy only allows plain HTTP requests.
     const groups = proxyOptions.groups ?? [];
     const protocol = groups.includes('GOOGLE_SERP') ? 'http' : 'https';
     const urlSearch = startOffset > 0

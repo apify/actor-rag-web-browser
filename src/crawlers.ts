@@ -58,33 +58,31 @@ async function getGhosteryBlocker(): Promise<PlaywrightBlocker | undefined> {
     }
 }
 
-/** `checkAccess` only drives initialization, and no serialization tells two functions apart. */
-const PROXY_OPTIONS_EXCLUDED_FROM_KEY = new Set(['checkAccess', 'newUrlFunction']);
-
-/**
- * Resolves the aliases that `ProxyConfiguration` itself resolves, so options that differ only in
- * which spelling they use share one crawler instead of getting one each.
- */
+/** Mirrors how `Actor.createProxyConfiguration` reads these options, so equivalent spellings share a crawler. */
 function resolveProxyOptions(proxyOptions: ProxyOptions) {
-    const { apifyProxyGroups, apifyProxyCountry, apifyProxySubdivision, ...rest } = proxyOptions;
-    const resolved = {
+    const {
+        useApifyProxy,
+        checkAccess,
+        newUrlFunction,
+        apifyProxyGroups,
+        apifyProxyCountry,
+        apifyProxySubdivision,
+        ...rest
+    } = proxyOptions;
+
+    if (useApifyProxy === false && !rest.proxyUrls) {
+        return null;
+    }
+
+    return {
         ...rest,
-        useApifyProxy: rest.useApifyProxy !== false,
         groups: rest.groups?.length ? rest.groups : apifyProxyGroups,
         countryCode: rest.countryCode || apifyProxyCountry,
         subdivisionCode: rest.subdivisionCode || apifyProxySubdivision,
     };
-
-    return Object.fromEntries(
-        Object.entries(resolved).filter(([key]) => !PROXY_OPTIONS_EXCLUDED_FROM_KEY.has(key)),
-    );
 }
 
-/**
- * `JSON.stringify` with object keys sorted at every level, so that two objects differing only in key
- * order serialize identically. Array order is kept because it carries meaning, such as the rotation
- * order of `proxyUrls`. `Date` and `toJSON` are not honoured; the input here is parsed JSON.
- */
+/** `JSON.stringify` with object keys sorted at every level. Array order is kept, it carries meaning. */
 function canonicalJson(value: unknown): string {
     if (value === null || typeof value !== 'object') {
         return JSON.stringify(value) ?? 'null';
@@ -99,15 +97,10 @@ function canonicalJson(value: unknown): string {
 }
 
 /**
- * Identifies a crawler in the `crawlers` cache. The listed fields are the only ones the option
- * builders in `input.ts` derive from the input; everything else they set is a constant.
- *
- * The proxy *options* stand in for the constructed `ProxyConfiguration`, whose child logger
- * snapshots the log level at construction time. Serializing that instance made identical requests
- * miss the cache: https://github.com/apify/actor-rag-web-browser/issues/60.
- *
- * The fingerprint is hashed because the key is logged and used as the request queue name, while the
- * options may hold the proxy password or a custom proxy URL with credentials in it.
+ * Identifies a crawler in the `crawlers` cache. Listed are the only options the builders in
+ * `input.ts` derive from the input; the proxy options stand in for the constructed
+ * `ProxyConfiguration`, whose child logger snapshots the log level and so kept changing the key.
+ * Hashed because the key is logged and used as a queue name, while the options can hold credentials.
  */
 export function getCrawlerKey(
     kind: CrawlerKind,
