@@ -245,9 +245,6 @@ in Browser mode (`scrapingTool=browser-playwright`) before it extracts the conte
 Elements linking to another page are not clicked, so that the Actor stays on the page it was asked
 to extract.
 
-Note that clicking costs about half a second on pages that have such elements, and that content of
-expanded navigation menus can end up in the output as well.
-
 ### Reducing response time
 
 For low-latency applications, it's recommended to run the RAG Web Browser in Standby mode
