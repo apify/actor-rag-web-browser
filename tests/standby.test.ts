@@ -9,7 +9,7 @@ import {
 } from 'vitest';
 
 import { ContentCrawlerStatus } from '../src/const.js';
-import { createAndStartContentCrawler, createAndStartSearchCrawler } from '../src/crawlers.js';
+import { createAndStartContentCrawler, createAndStartSearchCrawler, getCrawlerCount } from '../src/crawlers.js';
 import { processStandbyInput } from '../src/input.js';
 import { createServer } from '../src/server.js';
 import { getImageRequestCount, resetImageRequestCount, startTestServer, stopTestServer } from './helpers/server.js';
@@ -100,6 +100,23 @@ describe('Standby RAG tests', () => {
         expect(data.length).toBe(1);
         expect(data[0].crawl.httpStatusMessage).toBe('Skipped media file');
         expect(getImageRequestCount()).toBe(0);
+    });
+
+    it('serves every combination of per-request settings without starting another crawler', async () => {
+        expect(getCrawlerCount()).toBe(3);
+
+        for (const params of [
+            '&debugMode=true',
+            '&requestTimeoutSecs=5',
+            '&maxRequestRetries=3&serpMaxRetries=0',
+            '&desiredConcurrency=17',
+            '&requestTimeoutSecs=299',
+        ]) {
+            const response = await fetch(`http://localhost:${browserServerPort}/search?query=${baseUrl}/basic${params}`);
+
+            expect(response.status, params).toBe(200);
+            expect(getCrawlerCount(), params).toBe(3);
+        }
     });
 
     it('standby request playwright does not download media files of the page', async () => {

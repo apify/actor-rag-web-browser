@@ -5,12 +5,14 @@ import { BrowserName, log } from 'crawlee';
 import { firefox } from 'playwright';
 
 import ragWebBrowserInputSchema from '../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
-import { ContentCrawlerTypes } from './const.js';
+import { ContentCrawlerTypes, CRAWLER_MAX_REQUEST_RETRIES, CRAWLER_REQUEST_HANDLER_TIMEOUT_SECS } from './const.js';
 import { UserInputError } from './errors.js';
 import { blockMediaRequests } from './media.js';
 import { getMiniActor } from './mini-actors.js';
 import type {
+    CommonInput,
     ContentCrawlerOptions,
+    ContentCrawlerUserData,
     ContentScraperSettings,
     Input,
     OutputFormats,
@@ -21,6 +23,11 @@ import type {
     SERPProxyGroup,
     UrlToMarkdownInput,
 } from './types.js';
+import { requestTimeoutMillis } from './utils.js';
+
+// Captured at boot so that requests resolve these the way the crawlers were built, rather than
+// falling back to the schema defaults and missing them.
+let crawlerInput: Pick<CommonInput, 'desiredConcurrency' | 'proxyConfiguration'> | undefined;
 
 /**
  * Processes the input and returns an array of crawler settings. This is ideal for startup of STANDBY mode
@@ -28,6 +35,7 @@ import type {
  */
 export async function processStandbyInput(originalInput: Partial<Input>) {
     const { input, searchCrawlerOptions, contentScraperSettings } = await processInputInternal(originalInput, true);
+    crawlerInput = { desiredConcurrency: input.desiredConcurrency, proxyConfiguration: input.proxyConfiguration };
 
     const proxy = await Actor.createProxyConfiguration(input.proxyConfiguration);
     const contentCrawlerOptions: ContentCrawlerOptions[] = [
@@ -63,6 +71,8 @@ async function processInputInternal(
     let input: Input;
     let searchCrawlerOptions: SearchCrawlerOptions = { crawlerOptions: {}, proxyOptions: {} };
 
+    Object.assign(originalInput, crawlerInput);
+
     if (miniActor.runsSearch) {
         const processedRagWebBrowserInput = await processRagWebBrowserInput(
             originalInput as Partial<RagWebBrowserInput>, standbyInit);
@@ -89,6 +99,8 @@ async function processInputInternal(
         outputFormats,
         removeCookieWarnings,
         removeElementsCssSelector,
+        requestTimeoutSecs: input.requestTimeoutSecs,
+        maxRequestRetries: input.maxRequestRetries,
     };
 
     return { input, searchCrawlerOptions, contentScraperSettings };
@@ -171,7 +183,7 @@ async function processRagWebBrowserInput(input: Partial<RagWebBrowserInput>, sta
     const searchCrawlerOptions: SearchCrawlerOptions = {
         crawlerOptions: {
             keepAlive: standbyInit,
-            maxRequestRetries: input.serpMaxRetries,
+            maxRequestRetries: CRAWLER_MAX_REQUEST_RETRIES,
             proxyConfiguration: proxySearch,
             autoscaledPoolOptions: { desiredConcurrency: 1 },
         },
@@ -219,17 +231,15 @@ function createPlaywrightCrawlerOptions(
     proxy: ProxyConfiguration | undefined,
     keepAlive = true,
 ): ContentCrawlerOptions {
-    const { maxRequestRetries, desiredConcurrency } = input;
-
     return {
         type: ContentCrawlerTypes.PLAYWRIGHT,
         proxyOptions: input.proxyConfiguration,
         crawlerOptions: {
             headless: true,
             keepAlive,
-            maxRequestRetries,
+            maxRequestRetries: CRAWLER_MAX_REQUEST_RETRIES,
             proxyConfiguration: proxy,
-            requestHandlerTimeoutSecs: input.requestTimeoutSecs,
+            requestHandlerTimeoutSecs: CRAWLER_REQUEST_HANDLER_TIMEOUT_SECS,
             launchContext: {
                 launcher: firefox,
             },
@@ -237,9 +247,14 @@ function createPlaywrightCrawlerOptions(
                 async ({ page }) => {
                     await blockMediaRequests(page);
                 },
-                (_context, gotoOptions) => {
+                ({ request }, gotoOptions) => {
                     // eslint-disable-next-line no-param-reassign
                     gotoOptions.waitUntil = 'domcontentloaded';
+                    // eslint-disable-next-line no-param-reassign
+                    gotoOptions.timeout = Math.min(
+                        gotoOptions.timeout ?? Infinity,
+                        requestTimeoutMillis(request.userData as ContentCrawlerUserData),
+                    );
                 },
             ],
             browserPoolOptions: {
@@ -251,7 +266,7 @@ function createPlaywrightCrawlerOptions(
                 retireInactiveBrowserAfterSecs: 60,
             },
             autoscaledPoolOptions: {
-                desiredConcurrency,
+                desiredConcurrency: input.desiredConcurrency,
             },
         },
     };
@@ -262,18 +277,22 @@ function createCheerioCrawlerOptions(
     proxy: ProxyConfiguration | undefined,
     keepAlive = true,
 ): ContentCrawlerOptions {
-    const { maxRequestRetries, desiredConcurrency } = input;
-
     return {
         type: ContentCrawlerTypes.CHEERIO,
         proxyOptions: input.proxyConfiguration,
         crawlerOptions: {
             keepAlive,
-            maxRequestRetries,
+            maxRequestRetries: CRAWLER_MAX_REQUEST_RETRIES,
             proxyConfiguration: proxy,
-            requestHandlerTimeoutSecs: input.requestTimeoutSecs,
+            requestHandlerTimeoutSecs: CRAWLER_REQUEST_HANDLER_TIMEOUT_SECS,
+            preNavigationHooks: [
+                ({ request }, gotOptions) => {
+                    // eslint-disable-next-line no-param-reassign
+                    gotOptions.timeout = { request: requestTimeoutMillis(request.userData as ContentCrawlerUserData) };
+                },
+            ],
             autoscaledPoolOptions: {
-                desiredConcurrency,
+                desiredConcurrency: input.desiredConcurrency,
             },
         },
     };
@@ -325,6 +344,7 @@ function validateAndFillInput(input: Partial<Input>): Input {
     /* eslint-enable no-param-reassign */
 }
 
+/** Every range-checked field is an integer in the input schema, so non-integers are rounded. */
 function validateRange(
     value: number | string | undefined,
     min: number,
@@ -332,19 +352,25 @@ function validateRange(
     defaultValue: number,
     fieldName: string,
 ) {
-    // parse the value as a number to check if it's a valid number
-    if (value === undefined) {
-        log.info(`The \`${fieldName}\` parameter is not defined. Using the default value ${defaultValue}.`);
+    const parsed = typeof value === 'string' ? Number(value) : value;
+
+    if (parsed === undefined || !Number.isFinite(parsed)) {
+        if (parsed === undefined) {
+            log.info(`The \`${fieldName}\` parameter is not defined. Using the default value ${defaultValue}.`);
+        } else {
+            log.warning(`The \`${fieldName}\` parameter must be a number, but was ${value}. Using ${defaultValue} instead.`);
+        }
         return defaultValue;
-    } if (typeof value === 'string') {
-        /* eslint-disable-next-line no-param-reassign */
-        value = Number(value);
-    } if (value < min) {
-        log.warning(`The \`${fieldName}\` parameter must be at least ${min}, but was ${fieldName}. Using ${min} instead.`);
+    }
+
+    const rounded = Math.round(parsed);
+    if (rounded < min) {
+        log.warning(`The \`${fieldName}\` parameter must be at least ${min}, but was ${value}. Using ${min} instead.`);
         return min;
-    } if (value > max) {
-        log.warning(`The \`${fieldName}\` parameter must be at most ${max}, but was ${fieldName}. Using ${max} instead.`);
+    }
+    if (rounded > max) {
+        log.warning(`The \`${fieldName}\` parameter must be at most ${max}, but was ${value}. Using ${max} instead.`);
         return max;
     }
-    return value;
+    return rounded;
 }

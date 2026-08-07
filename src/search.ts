@@ -86,6 +86,7 @@ function prepareRequest(
                 maxResults,
                 contentCrawlerKey,
                 contentScraperSettings,
+                serpMaxRetries: (input as Input & RagWebBrowserInput).serpMaxRetries,
                 userAuthorization,
             },
             searchCrawlerOptions.proxyOptions,
