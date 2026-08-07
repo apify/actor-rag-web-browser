@@ -32,7 +32,11 @@ import type {
 } from './types.js';
 import { addTimeMeasureEvent, createRequest, createSearchRequest, isActorStandby, randomId } from './utils.js';
 
-const crawlers = new Map<string, CheerioCrawler | PlaywrightCrawler>();
+type ContentCrawler = CheerioCrawler | PlaywrightCrawler;
+
+// Pending rather than built, so concurrent requests for one key don't each build a crawler and
+// orphan all but the last.
+const crawlers = new Map<string, Promise<ContentCrawler>>();
 const client = new MemoryStorage({ persistStorage: false });
 
 const contentCrawlerHttpClient = new ImpitHttpClient({
@@ -97,25 +101,51 @@ function canonicalJson(value: unknown): string {
 }
 
 /**
- * Identifies a crawler in the `crawlers` cache. Listed are the only options the builders in
- * `input.ts` derive from the input; the proxy options stand in for the constructed
- * `ProxyConfiguration`, whose child logger snapshots the log level and so kept changing the key.
- * Hashed because the key is logged and used as a queue name, while the options can hold credentials.
+ * The proxy options stand in for the constructed `ProxyConfiguration`, whose child logger snapshots
+ * the log level and so kept changing the key. Hashed because the key is logged and used as a queue
+ * name, while the options can hold credentials.
  */
-export function getCrawlerKey(
-    kind: CrawlerKind,
-    crawlerOptions: CheerioCrawlerOptions | PlaywrightCrawlerOptions,
-    proxyOptions: ProxyOptions,
-): string {
-    const fingerprint = {
-        keepAlive: crawlerOptions.keepAlive,
-        maxRequestRetries: crawlerOptions.maxRequestRetries,
-        requestHandlerTimeoutSecs: crawlerOptions.requestHandlerTimeoutSecs,
-        desiredConcurrency: crawlerOptions.autoscaledPoolOptions?.desiredConcurrency,
-        proxy: resolveProxyOptions(proxyOptions),
-    };
-    const hash = createHash('sha1').update(canonicalJson(fingerprint)).digest('hex');
+export function getCrawlerCount() {
+    return crawlers.size;
+}
+
+export function getCrawlerKey(kind: CrawlerKind, proxyOptions: ProxyOptions): string {
+    const hash = createHash('sha1').update(canonicalJson(resolveProxyOptions(proxyOptions))).digest('hex');
     return `${kind}-${hash.slice(0, 12)}`;
+}
+
+/** A crawler that fails to build or to run is dropped, so the cache can never hand out a dead one. */
+async function getOrCreateCrawler(
+    key: string,
+    kind: CrawlerKind,
+    startCrawler: boolean,
+    build: () => Promise<ContentCrawler>,
+): Promise<ContentCrawler> {
+    const cached = crawlers.get(key);
+    if (cached) {
+        return cached;
+    }
+
+    const pending = (async () => {
+        log.info(`Creating new ${kind} crawler with key ${key}`);
+        const crawler = await build();
+        if (startCrawler) {
+            crawler.run().then(
+                () => log.warning(`Crawler ${kind} has finished`),
+                (err) => {
+                    log.error(`Crawler ${kind} failed to run: ${err instanceof Error ? err.message : String(err)}`);
+                    crawlers.delete(key);
+                },
+            );
+            log.info(`Crawler ${kind} has started 💪🏼`);
+        }
+        return crawler;
+    })();
+
+    crawlers.set(key, pending);
+    pending.catch(() => crawlers.delete(key));
+    log.info(`Number of crawlers ${crawlers.size}`);
+    return pending;
 }
 
 /**
@@ -127,13 +157,14 @@ export const addContentCrawlRequest = async (
     responseId: string,
     contentCrawlerKey: string,
 ) => {
-    const crawler = crawlers.get(contentCrawlerKey);
-    const name = crawler instanceof PlaywrightCrawler ? 'playwright' : 'cheerio';
-
-    if (!crawler) {
+    const pending = crawlers.get(contentCrawlerKey);
+    if (!pending) {
         log.error(`Content crawler not found: key ${contentCrawlerKey}`);
         return;
     }
+
+    const crawler = await pending;
+    const name = crawler instanceof PlaywrightCrawler ? 'playwright' : 'cheerio';
     try {
         await crawler.requestQueue!.addRequest(request);
         // create an empty result in search request response
@@ -154,13 +185,8 @@ export async function createAndStartSearchCrawler(
     startCrawler = true,
 ) {
     const { crawlerOptions, proxyOptions } = searchCrawlerOptions;
-    const key = getCrawlerKey('search', crawlerOptions, proxyOptions);
-    if (crawlers.has(key)) {
-        return { key, crawler: crawlers.get(key) };
-    }
-
-    log.info(`Creating new cheerio crawler with key ${key}`);
-    const crawler = new CheerioCrawler({
+    const key = getCrawlerKey('search', proxyOptions);
+    const crawler = await getOrCreateCrawler(key, 'search', startCrawler, async () => new CheerioCrawler({
         ...crawlerOptions,
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
         requestHandler: async ({ request, $: _$, addRequests }: CheerioCrawlingContext<SearchCrawlerUserData>) => {
@@ -232,17 +258,8 @@ export async function createAndStartSearchCrawler(
             const errorResponse = { errorMessage: err.message };
             sendResponseError(request.uniqueKey, JSON.stringify(errorResponse));
         },
-    });
-    if (startCrawler) {
-        crawler.run().then(
-            () => log.warning('Google-search-crawler has finished'),
-            // eslint-disable-next-line @typescript-eslint/no-empty-function
-            () => { },
-        );
-        log.info('Google-search-crawler has started 🫡');
-    }
-    crawlers.set(key, crawler);
-    log.info(`Number of crawlers ${crawlers.size}`);
+    }));
+
     return { key, crawler };
 }
 
@@ -257,25 +274,13 @@ export async function createAndStartContentCrawler(
 ) {
     const { type: crawlerType, crawlerOptions, proxyOptions } = contentCrawlerOptions;
 
-    const key = getCrawlerKey(crawlerType, crawlerOptions, proxyOptions);
-    if (crawlers.has(key)) {
-        return { key, crawler: crawlers.get(key) };
-    }
+    const key = getCrawlerKey(crawlerType, proxyOptions);
+    const crawler = await getOrCreateCrawler(key, crawlerType, startCrawler, async () => (
+        crawlerType === ContentCrawlerTypes.PLAYWRIGHT
+            ? createPlaywrightContentCrawler(crawlerOptions, key)
+            : createCheerioContentCrawler(crawlerOptions, key)
+    ));
 
-    const crawler = crawlerType === 'playwright'
-        ? await createPlaywrightContentCrawler(crawlerOptions, key)
-        : await createCheerioContentCrawler(crawlerOptions, key);
-
-    if (startCrawler) {
-        crawler.run().then(
-            () => log.warning(`Crawler ${crawlerType} has finished`),
-            // eslint-disable-next-line @typescript-eslint/no-empty-function
-            () => { },
-        );
-        log.info(`Crawler ${crawlerType} has started 💪🏼`);
-    }
-    crawlers.set(key, crawler);
-    log.info(`Number of crawlers ${crawlers.size}`);
     return { key, crawler };
 }
 
@@ -288,7 +293,6 @@ async function createPlaywrightContentCrawler(
     crawlerOptions: PlaywrightCrawlerOptions,
     key: string,
 ): Promise<PlaywrightCrawler> {
-    log.info(`Creating new playwright crawler with key ${key}`);
     const blocker = await getGhosteryBlocker();
     return new PlaywrightCrawler({
         ...crawlerOptions,
@@ -309,7 +313,6 @@ async function createCheerioContentCrawler(
     crawlerOptions: CheerioCrawlerOptions,
     key: string,
 ): Promise<CheerioCrawler> {
-    log.info(`Creating new cheerio crawler with key ${key}`);
     return new CheerioCrawler({
         ...crawlerOptions,
         keepAlive: crawlerOptions.keepAlive,
@@ -397,12 +400,13 @@ export const addSearchRequest = async (
     request: RequestOptions<ContentCrawlerUserData>,
     searchCrawlerKey: string,
 ) => {
-    const crawler = crawlers.get(searchCrawlerKey);
-
-    if (!crawler) {
+    const pending = crawlers.get(searchCrawlerKey);
+    if (!pending) {
         log.error(`Search crawler not found: key ${searchCrawlerKey}`);
         return;
     }
+
+    const crawler = await pending;
     addTimeMeasureEvent(request.userData!, 'before-cheerio-queue-add');
     await crawler.requestQueue!.addRequest(request);
     log.info(`Added request to cheerio-google-search-crawler: ${request.url}`);

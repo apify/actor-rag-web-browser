@@ -26,6 +26,10 @@ const inputSchema = {
     },
 };
 
+// Crawlee rewrites concurrency on its own schedule, and a proxy is fixed when a crawler is built.
+// Honouring either per request would mean a crawler per caller, and standby crawlers never stop.
+const STARTUP_ONLY_PARAMS = new Set<string>(['desiredConcurrency', 'proxyConfiguration']);
+
 const SCHEMELESS_URL_DOMAIN_SUFFIXES = [
     'com',
     'net',
@@ -76,6 +80,11 @@ export function parseParameters(url: string): Partial<Input> {
             continue;
         }
 
+        if (STARTUP_ONLY_PARAMS.has(key)) {
+            log.warning(`The \`${key}\` parameter can only be set on the Actor input, not per request. Ignoring it.`);
+            continue;
+        }
+
         const typedKey = key as SchemaKey;
 
         // Parse outputFormats parameter as an array of OutputFormats
@@ -103,6 +112,11 @@ export function parseParameters(url: string): Partial<Input> {
     }
 
     return parsedInput;
+}
+
+/** Crawlee caps this at the crawler's own navigation timeout, so a request can only narrow it. */
+export function requestTimeoutMillis(userData: ContentCrawlerUserData) {
+    return userData.contentScraperSettings.requestTimeoutSecs * 1000;
 }
 
 export function randomId() {
@@ -145,12 +159,14 @@ export function createSearchRequest(
     return {
         url: urlSearch,
         uniqueKey: randomId(),
+        maxRetries: userData.serpMaxRetries,
         userData: {
             maxResults: userData.maxResults,
             timeMeasures: userData.timeMeasures || [],
             query: userData.query,
             contentCrawlerKey: userData.contentCrawlerKey,
             contentScraperSettings: userData.contentScraperSettings,
+            serpMaxRetries: userData.serpMaxRetries,
             responseId: userData.responseId,
             collectedResults,
             currentPage,
@@ -174,6 +190,7 @@ export function createRequest(
     return {
         url: result.url!,
         uniqueKey: randomId(),
+        maxRetries: contentScraperSettings.maxRequestRetries,
         // Media files contain no text to extract, so don't spend any bandwidth on downloading them.
         skipNavigation: isMediaUrl(result.url!),
         userData: {

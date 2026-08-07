@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { interpretAsUrl } from '../src/utils.js';
+import type { ContentScraperSettings } from '../src/types.js';
+import { createRequest, createSearchRequest, interpretAsUrl, parseParameters } from '../src/utils.js';
+
+const contentScraperSettings: ContentScraperSettings = {
+    debugMode: false,
+    dynamicContentWaitSecs: 1,
+    maxHtmlCharsToProcess: 1000,
+    outputFormats: ['markdown'],
+    requestTimeoutSecs: 7,
+    maxRequestRetries: 3,
+};
 
 describe('interpretAsUrl', () => {
     it('should return null for empty input', () => {
@@ -29,5 +39,34 @@ describe('interpretAsUrl', () => {
 
     it('should handle multiple decoding attempts', () => {
         expect(interpretAsUrl('https%253A%252F%252Fexample.com')).toBe('https://example.com/');
+    });
+});
+
+describe('request retries', () => {
+    it('takes the content retry count from the scraper settings', () => {
+        expect(createRequest('q', { url: 'https://example.com' }, 'rid', contentScraperSettings).maxRetries).toBe(3);
+    });
+
+    it('takes the search retry count from the user data', () => {
+        const request = createSearchRequest({
+            query: 'q',
+            responseId: 'rid',
+            maxResults: 1,
+            contentCrawlerKey: 'key',
+            contentScraperSettings,
+            serpMaxRetries: 4,
+        }, {});
+
+        expect(request.maxRetries).toBe(4);
+        expect(request.userData?.serpMaxRetries).toBe(4);
+    });
+});
+
+describe('parseParameters', () => {
+    it('drops parameters that only apply to the crawlers started with the Actor', () => {
+        const proxyConfiguration = encodeURIComponent('{"useApifyProxy":true}');
+
+        expect(parseParameters(`?query=x&desiredConcurrency=17&proxyConfiguration=${proxyConfiguration}`))
+            .toEqual({ query: 'x' });
     });
 });

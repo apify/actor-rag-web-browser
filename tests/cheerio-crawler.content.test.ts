@@ -73,6 +73,8 @@ describe('Cheerio Crawler Content Tests', () => {
                 outputFormats: ['text'],
                 maxHtmlCharsToProcess: 100000,
                 dynamicContentWaitSecs: 20,
+                requestTimeoutSecs: 40,
+                maxRequestRetries: 1,
             },
             [],
         );

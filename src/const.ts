@@ -22,4 +22,8 @@ export type CrawlerKind = 'search' | ContentCrawlerTypes;
 
 export const PLAYWRIGHT_REQUEST_TIMEOUT_NORMAL_MODE_SECS = 60;
 
+// The widest values the input schema allows; each request narrows them down to its own.
+export const CRAWLER_MAX_REQUEST_RETRIES = 5;
+export const CRAWLER_REQUEST_HANDLER_TIMEOUT_SECS = 300;
+
 export const GOOGLE_STANDARD_RESULTS_PER_PAGE = 10;

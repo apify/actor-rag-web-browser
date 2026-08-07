@@ -89,17 +89,6 @@
                         }
                     },
                     {
-                        "name": "proxyConfiguration",
-                        "in": "query",
-                        "description": "Apify Proxy configuration used for scraping the target web pages, as a JSON-encoded object string.",
-                        "required": false,
-                        "schema": {
-                            "type": "string",
-                            "default": "{\"useApifyProxy\": true}"
-                        },
-                        "example": "{\"useApifyProxy\": true}"
-                    },
-                    {
                         "name": "scrapingTool",
                         "in": "query",
                         "description": "Select a scraping tool for extracting the target web pages. The Browser tool is more powerful and can handle JavaScript heavy websites, while the Plain HTML tool can't handle JavaScript but is about two times faster.",

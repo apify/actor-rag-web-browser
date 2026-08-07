@@ -30,7 +30,7 @@
                 "sectionCaption": "Scraping settings",
                 "title": "Proxy configuration",
                 "type": "object",
-                "description": "Apify Proxy configuration used for scraping the target web pages.",
+                "description": "Apify Proxy configuration used for scraping the target web pages. In Standby mode this applies to the shared crawlers started with the Actor, so it cannot be set per request.",
                 "default": {
                     "useApifyProxy": true
                 },
@@ -50,8 +50,8 @@
             "desiredConcurrency": {
                 "title": "Desired browsing concurrency",
                 "type": "integer",
-                "description": "The desired number of web browsers running in parallel. The system automatically scales the number based on the CPU and memory usage. If the initial value is `0`, the Actor picks the number automatically based on the available memory.",
-                "minimum": 0,
+                "description": "The desired number of web browsers running in parallel. The system automatically scales the number based on the CPU and memory usage. In Standby mode this applies to the shared crawlers started with the Actor, so it cannot be set per request.",
+                "minimum": 1,
                 "maximum": 50,
                 "default": 1,
                 "editor": "hidden"

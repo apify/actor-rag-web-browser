@@ -97,6 +97,8 @@ export interface ContentScraperSettings {
     outputFormats: OutputFormats[];
     removeCookieWarnings?: boolean;
     removeElementsCssSelector?: string;
+    requestTimeoutSecs: number;
+    maxRequestRetries: number;
 }
 
 export type SearchCrawlerUserData = {
@@ -106,6 +108,7 @@ export type SearchCrawlerUserData = {
     contentCrawlerKey: string;
     responseId: string;
     contentScraperSettings: ContentScraperSettings;
+    serpMaxRetries: number;
     // Pagination tracking
     /** Results accumulated across SERP pages, passed forward for merging */
     collectedResults: OrganicResult[];
