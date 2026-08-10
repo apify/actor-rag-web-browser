@@ -2,7 +2,7 @@ import type { IncomingHttpHeaders } from 'node:http';
 import { parse } from 'node:querystring';
 
 import { Actor } from 'apify';
-import type { ProxyConfiguration, RequestOptions } from 'crawlee';
+import type { RequestOptions } from 'crawlee';
 import { log } from 'crawlee';
 
 import ragWebBrowserInputSchema from '../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
@@ -14,6 +14,7 @@ import type {
     CreateSearchRequestUserData,
     Input,
     OrganicResult, OutputFormats,
+    ProxyOptions,
     SearchCrawlerUserData,
     TimeMeasure,
 } from './types.js';
@@ -144,7 +145,7 @@ export function randomId() {
  */
 export function createSearchRequest(
     userData: CreateSearchRequestUserData,
-    proxyConfiguration: ProxyConfiguration | undefined,
+    proxyOptions: ProxyOptions,
     startOffset = 0,
 ): RequestOptions<SearchCrawlerUserData> {
     // Initialize or update pagination fields
@@ -152,9 +153,7 @@ export function createSearchRequest(
     const currentPage = userData.currentPage ?? 0;
     const totalPages = userData.totalPages ?? Math.ceil(userData.maxResults / 10) + 1;
 
-    // @ts-expect-error is there a better way to get group information?
-    // (e.g. to  create extended CheerioCrawlOptions and pass it there?)
-    const groups = proxyConfiguration?.groups || [];
+    const groups = proxyOptions.groups ?? [];
     const protocol = groups.includes('GOOGLE_SERP') ? 'http' : 'https';
     const urlSearch = startOffset > 0
         ? `${protocol}://www.google.com/search?q=${encodeURI(userData.query)}&start=${startOffset}`

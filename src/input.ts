@@ -1,6 +1,6 @@
 import type { ProxyConfigurationOptions } from 'apify';
 import { Actor } from 'apify';
-import type { CheerioCrawlerOptions, ProxyConfiguration } from 'crawlee';
+import type { ProxyConfiguration } from 'crawlee';
 import { BrowserName, log } from 'crawlee';
 import { firefox } from 'playwright';
 
@@ -14,8 +14,10 @@ import type {
     ContentScraperSettings,
     Input,
     OutputFormats,
+    ProxyOptions,
     RagWebBrowserInput,
     ScrapingTool,
+    SearchCrawlerOptions,
     SERPProxyGroup,
     UrlToMarkdownInput,
 } from './types.js';
@@ -60,7 +62,7 @@ async function processInputInternal(
 ) {
     const miniActor = getMiniActor();
     let input: Input;
-    let searchCrawlerOptions: CheerioCrawlerOptions = {};
+    let searchCrawlerOptions: SearchCrawlerOptions = { crawlerOptions: {}, proxyOptions: {} };
 
     if (miniActor.runsSearch) {
         const processedRagWebBrowserInput = await processRagWebBrowserInput(
@@ -80,8 +82,6 @@ async function processInputInternal(
         removeCookieWarnings,
     } = input;
 
-    log.setLevel(debugMode ? log.LEVELS.DEBUG : log.LEVELS.INFO);
-
     const contentScraperSettings: ContentScraperSettings = {
         debugMode,
         dynamicContentWaitSecs,
@@ -98,7 +98,7 @@ async function processInputInternal(
 async function processRagWebBrowserInput(input: Partial<RagWebBrowserInput>, standbyInit: boolean):
     Promise<{
         validatedRagBrowserInput: RagWebBrowserInput;
-        searchCrawlerOptions: CheerioCrawlerOptions
+        searchCrawlerOptions: SearchCrawlerOptions
     }> {
     /* eslint-disable no-param-reassign */
 
@@ -167,12 +167,16 @@ async function processRagWebBrowserInput(input: Partial<RagWebBrowserInput>, sta
         input.dynamicContentWaitSecs = Math.round(input.requestTimeoutSecs / 2);
     }
 
-    const proxySearch = await Actor.createProxyConfiguration({ groups: [input.serpProxyGroup], checkAccess: false });
-    const searchCrawlerOptions: CheerioCrawlerOptions = {
-        keepAlive: standbyInit,
-        maxRequestRetries: input.serpMaxRetries,
-        proxyConfiguration: proxySearch,
-        autoscaledPoolOptions: { desiredConcurrency: 1 },
+    const proxyOptions: ProxyOptions = { groups: [input.serpProxyGroup] };
+    const proxySearch = await Actor.createProxyConfiguration({ ...proxyOptions, checkAccess: false });
+    const searchCrawlerOptions: SearchCrawlerOptions = {
+        crawlerOptions: {
+            keepAlive: standbyInit,
+            maxRequestRetries: input.serpMaxRetries,
+            proxyConfiguration: proxySearch,
+            autoscaledPoolOptions: { desiredConcurrency: 1 },
+        },
+        proxyOptions,
     };
     const validatedRagBrowserInput = validateAndFillInput(input) as RagWebBrowserInput;
     return {
@@ -228,6 +232,7 @@ function createPlaywrightCrawlerOptions(
 
     return {
         type: ContentCrawlerTypes.PLAYWRIGHT,
+        proxyOptions: input.proxyConfiguration,
         crawlerOptions: {
             headless: true,
             keepAlive,
@@ -270,6 +275,7 @@ function createCheerioCrawlerOptions(
 
     return {
         type: ContentCrawlerTypes.CHEERIO,
+        proxyOptions: input.proxyConfiguration,
         crawlerOptions: {
             keepAlive,
             maxRequestRetries,

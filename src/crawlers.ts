@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
 import { ImpitHttpClient } from '@crawlee/impit-client';
@@ -16,12 +17,19 @@ import {
     type RequestOptions,
 } from 'crawlee';
 
+import type { CrawlerKind } from './const.js';
 import { ContentCrawlerTypes, GOOGLE_STANDARD_RESULTS_PER_PAGE } from './const.js';
 import { deduplicateResults, scrapeOrganicResults } from './google-search/google-extractors-urls.js';
 import { getMiniActor } from './mini-actors.js';
 import { failedRequestHandler, requestHandlerCheerio, requestHandlerPlaywright } from './request-handler.js';
 import { addEmptyResultToResponse, sendResponseError } from './responses.js';
-import type { ContentCrawlerOptions, ContentCrawlerUserData, SearchCrawlerUserData } from './types.js';
+import type {
+    ContentCrawlerOptions,
+    ContentCrawlerUserData,
+    ProxyOptions,
+    SearchCrawlerOptions,
+    SearchCrawlerUserData,
+} from './types.js';
 import { addTimeMeasureEvent, createRequest, createSearchRequest, isActorStandby, randomId } from './utils.js';
 
 const crawlers = new Map<string, CheerioCrawler | PlaywrightCrawler>();
@@ -50,8 +58,64 @@ async function getGhosteryBlocker(): Promise<PlaywrightBlocker | undefined> {
     }
 }
 
-export function getCrawlerKey(crawlerOptions: CheerioCrawlerOptions | PlaywrightCrawlerOptions) {
-    return JSON.stringify(crawlerOptions);
+/** Mirrors how `Actor.createProxyConfiguration` reads these options, so equivalent spellings share a crawler. */
+function resolveProxyOptions(proxyOptions: ProxyOptions) {
+    const {
+        useApifyProxy,
+        checkAccess,
+        newUrlFunction,
+        apifyProxyGroups,
+        apifyProxyCountry,
+        apifyProxySubdivision,
+        ...rest
+    } = proxyOptions;
+
+    if (useApifyProxy === false && !rest.proxyUrls) {
+        return null;
+    }
+
+    return {
+        ...rest,
+        groups: rest.groups?.length ? rest.groups : apifyProxyGroups,
+        countryCode: rest.countryCode || apifyProxyCountry,
+        subdivisionCode: rest.subdivisionCode || apifyProxySubdivision,
+    };
+}
+
+/** `JSON.stringify` with object keys sorted at every level. Array order is kept, it carries meaning. */
+function canonicalJson(value: unknown): string {
+    if (value === null || typeof value !== 'object') {
+        return JSON.stringify(value) ?? 'null';
+    }
+    if (Array.isArray(value)) {
+        return `[${value.map(canonicalJson).join(',')}]`;
+    }
+    const entries = Object.entries(value)
+        .filter(([, entryValue]) => entryValue !== undefined)
+        .sort(([a], [b]) => (a < b ? -1 : 1));
+    return `{${entries.map(([key, entryValue]) => `${JSON.stringify(key)}:${canonicalJson(entryValue)}`).join(',')}}`;
+}
+
+/**
+ * Identifies a crawler in the `crawlers` cache. Listed are the only options the builders in
+ * `input.ts` derive from the input; the proxy options stand in for the constructed
+ * `ProxyConfiguration`, whose child logger snapshots the log level and so kept changing the key.
+ * Hashed because the key is logged and used as a queue name, while the options can hold credentials.
+ */
+export function getCrawlerKey(
+    kind: CrawlerKind,
+    crawlerOptions: CheerioCrawlerOptions | PlaywrightCrawlerOptions,
+    proxyOptions: ProxyOptions,
+): string {
+    const fingerprint = {
+        keepAlive: crawlerOptions.keepAlive,
+        maxRequestRetries: crawlerOptions.maxRequestRetries,
+        requestHandlerTimeoutSecs: crawlerOptions.requestHandlerTimeoutSecs,
+        desiredConcurrency: crawlerOptions.autoscaledPoolOptions?.desiredConcurrency,
+        proxy: resolveProxyOptions(proxyOptions),
+    };
+    const hash = createHash('sha1').update(canonicalJson(fingerprint)).digest('hex');
+    return `${kind}-${hash.slice(0, 12)}`;
 }
 
 /**
@@ -86,17 +150,18 @@ export const addContentCrawlRequest = async (
  * A crawler won't be created if it already exists.
  */
 export async function createAndStartSearchCrawler(
-    searchCrawlerOptions: CheerioCrawlerOptions,
+    searchCrawlerOptions: SearchCrawlerOptions,
     startCrawler = true,
 ) {
-    const key = getCrawlerKey(searchCrawlerOptions);
+    const { crawlerOptions, proxyOptions } = searchCrawlerOptions;
+    const key = getCrawlerKey('search', crawlerOptions, proxyOptions);
     if (crawlers.has(key)) {
         return { key, crawler: crawlers.get(key) };
     }
 
     log.info(`Creating new cheerio crawler with key ${key}`);
     const crawler = new CheerioCrawler({
-        ...(searchCrawlerOptions as CheerioCrawlerOptions),
+        ...crawlerOptions,
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
         requestHandler: async ({ request, $: _$, addRequests }: CheerioCrawlingContext<SearchCrawlerUserData>) => {
             // NOTE: we need to cast this to fix `cheerio` type errors
@@ -135,7 +200,7 @@ export async function createAndStartSearchCrawler(
                         collectedResults: deduplicated,
                         currentPage: nextPage,
                     },
-                    searchCrawlerOptions.proxyConfiguration,
+                    proxyOptions,
                     nextOffset,
                 );
                 await addRequests([nextRequest]);
@@ -190,9 +255,9 @@ export async function createAndStartContentCrawler(
     contentCrawlerOptions: ContentCrawlerOptions,
     startCrawler = true,
 ) {
-    const { type: crawlerType, crawlerOptions } = contentCrawlerOptions;
+    const { type: crawlerType, crawlerOptions, proxyOptions } = contentCrawlerOptions;
 
-    const key = getCrawlerKey(crawlerOptions);
+    const key = getCrawlerKey(crawlerType, crawlerOptions, proxyOptions);
     if (crawlers.has(key)) {
         return { key, crawler: crawlers.get(key) };
     }
@@ -325,18 +390,17 @@ async function maybeCharge(crawlerType: ContentCrawlerTypes, userAuthorization?:
 }
 
 /**
- * Adds a search request to the Google search crawler.
+ * Adds a search request to the Google search crawler identified by `searchCrawlerKey`.
  * Create a response for the request and set the desired number of results (maxResults).
  */
 export const addSearchRequest = async (
     request: RequestOptions<ContentCrawlerUserData>,
-    searchCrawlerOptions: CheerioCrawlerOptions,
+    searchCrawlerKey: string,
 ) => {
-    const key = getCrawlerKey(searchCrawlerOptions);
-    const crawler = crawlers.get(key);
+    const crawler = crawlers.get(searchCrawlerKey);
 
     if (!crawler) {
-        log.error(`Cheerio crawler not found: key ${key}`);
+        log.error(`Search crawler not found: key ${searchCrawlerKey}`);
         return;
     }
     addTimeMeasureEvent(request.userData!, 'before-cheerio-queue-add');

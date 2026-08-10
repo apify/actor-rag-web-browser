@@ -88,7 +88,7 @@ describe('Cheerio Crawler Content Tests', () => {
 
     it('test the crawler is created with the impit HTTP client', async () => {
         const { crawler } = await createAndStartContentCrawler(
-            { type: ContentCrawlerTypes.CHEERIO, crawlerOptions: {} },
+            { type: ContentCrawlerTypes.CHEERIO, crawlerOptions: {}, proxyOptions: {} },
             false,
         );
 
