@@ -4,6 +4,7 @@ import { log } from 'crawlee';
 import { createAndStartContentCrawler, createAndStartSearchCrawler } from './crawlers.js';
 import { processInput, processStandbyInput } from './input.js';
 import { getMiniActor } from './mini-actors.js';
+import { initRequestLogger } from './request-logger.js';
 import { addTimeoutToAllResponses } from './responses.js';
 import { handleSearchNormalMode } from './search.js';
 import { createServer } from './server.js';
@@ -36,6 +37,8 @@ if (isActorStandby()) {
         contentCrawlerOptions: ${JSON.stringify(contentCrawlerOptions)},
         contentScraperSettings ${JSON.stringify(contentScraperSettings)}
     `);
+
+    initRequestLogger();
 
     const app = createServer();
 
