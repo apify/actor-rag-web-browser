@@ -19,6 +19,7 @@ import type {
     SERPProxyGroup,
     UrlToMarkdownInput,
 } from './types.js';
+import { abortRun } from './utils.js';
 
 /**
  * Processes the input and returns an array of crawler settings. This is ideal for startup of STANDBY mode
@@ -27,7 +28,7 @@ import type {
 export async function processStandbyInput(originalInput: Partial<Input>) {
     const { input, searchCrawlerOptions, contentScraperSettings } = await processInputInternal(originalInput, true);
 
-    const proxy = await Actor.createProxyConfiguration(input.proxyConfiguration);
+    const proxy = await createContentProxyConfiguration(input.proxyConfiguration);
     const contentCrawlerOptions: ContentCrawlerOptions[] = [
         createPlaywrightCrawlerOptions(input, proxy),
         createCheerioCrawlerOptions(input, proxy),
@@ -42,7 +43,7 @@ export async function processStandbyInput(originalInput: Partial<Input>) {
 export async function processInput(originalInput: Partial<Input>) {
     const { input, searchCrawlerOptions, contentScraperSettings } = await processInputInternal(originalInput);
 
-    const proxy = await Actor.createProxyConfiguration(input.proxyConfiguration);
+    const proxy = await createContentProxyConfiguration(input.proxyConfiguration);
     const contentCrawlerOptions: ContentCrawlerOptions = input.scrapingTool === 'raw-http'
         ? createCheerioCrawlerOptions(input, proxy, false)
         : createPlaywrightCrawlerOptions(input, proxy, false);
@@ -208,6 +209,17 @@ async function processUrlToMarkdownInput(input: Partial<UrlToMarkdownInput>): Pr
 
     const validatedInput = validateAndFillInput(input) as UrlToMarkdownInput;
     return validatedInput;
+}
+
+async function createContentProxyConfiguration(proxyConfiguration: ProxyConfigurationOptions) {
+    // A malformed configuration is a user input error, so validate it before checking the proxy access.
+    await Actor.createProxyConfiguration({ ...proxyConfiguration, checkAccess: false });
+
+    try {
+        return await Actor.createProxyConfiguration(proxyConfiguration);
+    } catch (e) {
+        return abortRun(`Cannot use Apify Proxy for scraping the target pages: ${(e as Error).message}`);
+    }
 }
 
 function createPlaywrightCrawlerOptions(

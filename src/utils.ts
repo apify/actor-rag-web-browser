@@ -3,7 +3,7 @@ import { parse } from 'node:querystring';
 
 import { Actor } from 'apify';
 import type { ProxyConfiguration, RequestOptions } from 'crawlee';
-import { log } from 'crawlee';
+import { log, sleep } from 'crawlee';
 
 import ragWebBrowserInputSchema from '../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
 import urlToMarkdownInputSchema from '../actors/apify_url-to-markdown/.actor/input_schema.json' with { type: 'json' };
@@ -45,6 +45,23 @@ const DOMAIN_LABEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
 
 export function isActorStandby(): boolean {
     return Actor.getEnv().metaOrigin === 'STANDBY';
+}
+
+/**
+ * Aborts the run with a terminal status message, instead of crashing or failing it.
+ */
+export async function abortRun(statusMessage: string): Promise<never> {
+    log.error(statusMessage);
+
+    if (!Actor.isAtHome()) {
+        process.exit(1);
+    }
+
+    await Actor.abort(Actor.getEnv().actorRunId!, { statusMessage, gracefully: true });
+    // Wait for the `aborting` event, on which the SDK shuts the Actor down.
+    while (true) {
+        await sleep(1000);
+    }
 }
 
 /**
