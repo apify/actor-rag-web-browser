@@ -212,9 +212,6 @@ async function processUrlToMarkdownInput(input: Partial<UrlToMarkdownInput>): Pr
 }
 
 async function createContentProxyConfiguration(proxyConfiguration: ProxyConfigurationOptions) {
-    // A malformed configuration is a user input error, so validate it before checking the proxy access.
-    await Actor.createProxyConfiguration({ ...proxyConfiguration, checkAccess: false });
-
     try {
         return await Actor.createProxyConfiguration(proxyConfiguration);
     } catch (e) {
