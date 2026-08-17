@@ -292,7 +292,7 @@ async function chargeStandby(eventName: string, actorRequestId: string): Promise
             Authorization: `Bearer ${token}`,
             'Idempotency-Key': randomId(),
         },
-        body: JSON.stringify({ eventName, count: 1, actorRequestId }),
+        body: JSON.stringify({ eventName, count: 1, requestId: actorRequestId }),
     });
     if (!response.ok) {
         const resText = await response.text();
