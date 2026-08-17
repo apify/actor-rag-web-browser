@@ -153,7 +153,6 @@ async function pushSkippedResult(
     await context.pushData(resultSkipped);
     if (responseId) {
         addResultToResponse(responseId, request.uniqueKey, resultSkipped);
-        sendResponseIfFinished(responseId);
     }
 }
 
@@ -230,7 +229,6 @@ async function handleContent(
     // Get responseId from the request.userData, which corresponds to the original search request
     if (responseId) {
         addResultToResponse(responseId, request.uniqueKey, result);
-        sendResponseIfFinished(responseId);
     }
 }
 
@@ -348,6 +346,5 @@ export async function failedRequestHandler(request: Request, err: Error, crawler
         log.info(`Adding result to the Apify dataset, url: ${request.url}`);
         await Actor.pushData(resultErr);
         addResultToResponse(responseId, request.uniqueKey, resultErr);
-        sendResponseIfFinished(responseId);
     }
 }

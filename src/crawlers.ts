@@ -20,7 +20,7 @@ import { ContentCrawlerTypes, GOOGLE_STANDARD_RESULTS_PER_PAGE } from './const.j
 import { deduplicateResults, scrapeOrganicResults } from './google-search/google-extractors-urls.js';
 import { getMiniActor } from './mini-actors.js';
 import { failedRequestHandler, requestHandlerCheerio, requestHandlerPlaywright } from './request-handler.js';
-import { addEmptyResultToResponse, sendResponseError } from './responses.js';
+import { addEmptyResultToResponse, sendResponseError, sendResponseIfFinished } from './responses.js';
 import type { ContentCrawlerOptions, ContentCrawlerUserData, SearchCrawlerUserData } from './types.js';
 import { addTimeMeasureEvent, createRequest, createSearchRequest, isActorStandby, randomId } from './utils.js';
 
@@ -233,9 +233,11 @@ async function createPlaywrightContentCrawler(
             const typedContext = context as unknown as PlaywrightCrawlingContext<ContentCrawlerUserData>;
             await requestHandlerPlaywright(typedContext, blocker);
             await maybeCharge(ContentCrawlerTypes.PLAYWRIGHT, typedContext.request.userData.actorRequestId);
+            sendResponseIfFinished(typedContext.request.userData.responseId!);
         }),
         failedRequestHandler: async ({ request }, err) => {
             await failedRequestHandler(request, err, ContentCrawlerTypes.PLAYWRIGHT);
+            sendResponseIfFinished(request.userData.responseId!);
         },
     });
 }
@@ -254,9 +256,11 @@ async function createCheerioContentCrawler(
             const typedContext = context as unknown as CheerioCrawlingContext<ContentCrawlerUserData>;
             await requestHandlerCheerio(typedContext);
             await maybeCharge(ContentCrawlerTypes.CHEERIO, typedContext.request.userData.actorRequestId);
+            sendResponseIfFinished(typedContext.request.userData.responseId!);
         }),
         failedRequestHandler: async ({ request }, err) => {
             await failedRequestHandler(request, err, ContentCrawlerTypes.CHEERIO);
+            sendResponseIfFinished(request.userData.responseId!);
         },
     });
 }
