@@ -107,7 +107,7 @@ export async function createAndStartSearchCrawler(
             const organicResults = scrapeOrganicResults($);
 
             // Destructure userData for easier access (pagination fields are initialized in createSearchRequest)
-            const { collectedResults, currentPage, totalPages, maxResults, userAuthorization } = request.userData;
+            const { collectedResults, currentPage, totalPages, maxResults, actorRequestId } = request.userData;
 
             // Merge with previously collected results and deduplicate
             const allResults = [...collectedResults, ...organicResults];
@@ -155,7 +155,7 @@ export async function createAndStartSearchCrawler(
                         responseId,
                         request.userData.contentScraperSettings!,
                         request.userData.timeMeasures!,
-                        userAuthorization,
+                        actorRequestId,
                     );
                     await addContentCrawlRequest(r, responseId, request.userData.contentCrawlerKey!);
                 }
@@ -232,7 +232,7 @@ async function createPlaywrightContentCrawler(
         requestHandler: (async (context) => {
             const typedContext = context as unknown as PlaywrightCrawlingContext<ContentCrawlerUserData>;
             await requestHandlerPlaywright(typedContext, blocker);
-            await maybeCharge(ContentCrawlerTypes.PLAYWRIGHT, typedContext.request.userData.userAuthorization);
+            await maybeCharge(ContentCrawlerTypes.PLAYWRIGHT, typedContext.request.userData.actorRequestId);
         }),
         failedRequestHandler: async ({ request }, err) => {
             await failedRequestHandler(request, err, ContentCrawlerTypes.PLAYWRIGHT);
@@ -253,7 +253,7 @@ async function createCheerioContentCrawler(
         requestHandler: (async (context) => {
             const typedContext = context as unknown as CheerioCrawlingContext<ContentCrawlerUserData>;
             await requestHandlerCheerio(typedContext);
-            await maybeCharge(ContentCrawlerTypes.CHEERIO, typedContext.request.userData.userAuthorization);
+            await maybeCharge(ContentCrawlerTypes.CHEERIO, typedContext.request.userData.actorRequestId);
         }),
         failedRequestHandler: async ({ request }, err) => {
             await failedRequestHandler(request, err, ContentCrawlerTypes.CHEERIO);
@@ -276,9 +276,9 @@ async function chargeNormal(eventName: string): Promise<void> {
 
 /**
  * Multi-tenant standby charging: POSTs directly to the platform charge REST endpoint,
- * passing the calling end-user's authorization so that user (not the Actor owner) is billed.
+ * passing the calling request's ID so that the correct caller (not the Actor owner) is billed.
  */
-async function chargeStandby(eventName: string, userAuthorization: string): Promise<void> {
+async function chargeStandby(eventName: string, actorRequestId: string): Promise<void> {
     const { apiBaseUrl, actorRunId, token } = Actor.getEnv();
     if (!apiBaseUrl || !actorRunId || !token) {
         log.warning(`Skipping standby charge for ${eventName} event: missing apiBaseUrl/actorRunId/token from Actor.getEnv().`);
@@ -292,7 +292,7 @@ async function chargeStandby(eventName: string, userAuthorization: string): Prom
             Authorization: `Bearer ${token}`,
             'Idempotency-Key': randomId(),
         },
-        body: JSON.stringify({ eventName, count: 1, userAuthorization }),
+        body: JSON.stringify({ eventName, count: 1, actorRequestId }),
     });
     if (!response.ok) {
         const resText = await response.text();
@@ -304,18 +304,18 @@ async function chargeStandby(eventName: string, userAuthorization: string): Prom
  * Dispatches to the correct charging path (normal single-run vs. multi-tenant standby)
  * based on isActorStandby().
  */
-async function maybeCharge(crawlerType: ContentCrawlerTypes, userAuthorization?: string) {
+async function maybeCharge(crawlerType: ContentCrawlerTypes, actorRequestId?: string) {
     if (getMiniActor().name !== 'url-to-markdown') {
         return;
     }
     const eventName = getEventName(crawlerType);
     try {
         if (isActorStandby()) {
-            if (!userAuthorization) {
-                log.warning(`Skipping standby charge for ${eventName} event: missing userAuthorization (x-apify-user-authorization header was not provided).`);
+            if (!actorRequestId) {
+                log.warning(`Skipping standby charge for ${eventName} event: missing actorRequestId (x-actor-request-id header was not provided).`);
                 return;
             }
-            await chargeStandby(eventName, userAuthorization);
+            await chargeStandby(eventName, actorRequestId);
         } else {
             await chargeNormal(eventName);
         }
