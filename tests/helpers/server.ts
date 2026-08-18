@@ -18,7 +18,7 @@ export function resetImageRequestCount(): void {
 /**
  * Creates and returns an Express server with test routes
  */
-export function createTestServer() {
+export function createTestServer(): express.Express {
     const app = express();
 
     const sendHtml = (name: string, res: express.Response) => {
