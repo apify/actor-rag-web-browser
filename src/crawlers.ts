@@ -308,21 +308,29 @@ async function chargeStandby(eventName: string, actorRequestId: string): Promise
  * Dispatches to the correct charging path (normal single-run vs. multi-tenant standby)
  * based on isActorStandby().
  */
+const CHARGE_TIMEOUT_MILLIS = 5_000;
+
 async function maybeCharge(crawlerType: ContentCrawlerTypes, actorRequestId?: string) {
     if (getMiniActor().name !== 'url-to-markdown') {
         return;
     }
     const eventName = getEventName(crawlerType);
     try {
-        if (isActorStandby()) {
-            if (!actorRequestId) {
-                log.warning(`Skipping standby charge for ${eventName} event: missing actorRequestId (x-actor-request-id header was not provided).`);
-                return;
-            }
-            await chargeStandby(eventName, actorRequestId);
-        } else {
-            await chargeNormal(eventName);
-        }
+        const chargePromise = isActorStandby()
+            ? (async () => {
+                if (!actorRequestId) {
+                    log.warning(`Skipping standby charge for ${eventName} event: missing actorRequestId (x-actor-request-id header was not provided).`);
+                    return;
+                }
+                await chargeStandby(eventName, actorRequestId);
+            })()
+            : chargeNormal(eventName);
+
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error(`Charging timed out after ${CHARGE_TIMEOUT_MILLIS} ms`)), CHARGE_TIMEOUT_MILLIS);
+        });
+
+        await Promise.race([chargePromise, timeoutPromise]);
     } catch (err) {
         log.error(`Failed to charge for ${eventName} event: ${err instanceof Error ? err.message : String(err)}`);
     }
