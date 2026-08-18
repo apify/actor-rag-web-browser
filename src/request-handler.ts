@@ -7,7 +7,7 @@ import { type CheerioCrawlingContext, htmlToText, log, type PlaywrightCrawlingCo
 
 import { ContentCrawlerStatus, ContentCrawlerTypes } from './const.js';
 import { blockMediaRequests, SKIPPED_MEDIA_FILE_MESSAGE } from './media.js';
-import { addResultToResponse, responseData, sendResponseIfFinished } from './responses.js';
+import { addResultToResponse, responseData } from './responses.js';
 import type { ContentCrawlerUserData, Output } from './types.js';
 import { addTimeMeasureEvent, isActorStandby, transformTimeMeasuresToRelative } from './utils.js';
 import {
