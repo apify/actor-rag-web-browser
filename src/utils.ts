@@ -64,11 +64,11 @@ export async function abortRun(statusMessage: string): Promise<never> {
 }
 
 /**
- * Extracts the calling end-user's authorization from the x-apify-user-authorization header.
+ * Extracts the actor request ID from the x-actor-request-id header.
  * Node lower-cases header names, and the header could theoretically arrive as a string array.
  */
-export function extractUserAuthorization(headers: IncomingHttpHeaders): string | undefined {
-    const header = headers['x-apify-user-authorization'];
+export function extractActorRequestId(headers: IncomingHttpHeaders): string | undefined {
+    const header = headers['x-actor-request-id'];
     return Array.isArray(header) ? header[0] : header;
 }
 
@@ -172,7 +172,7 @@ export function createSearchRequest(
             collectedResults,
             currentPage,
             totalPages,
-            userAuthorization: userData.userAuthorization,
+            actorRequestId: userData.actorRequestId,
         },
     };
 }
@@ -186,7 +186,7 @@ export function createRequest(
     responseId: string,
     contentScraperSettings: ContentScraperSettings,
     timeMeasures: TimeMeasure[] | null = null,
-    userAuthorization?: string,
+    actorRequestId?: string,
 ): RequestOptions<ContentCrawlerUserData> {
     return {
         url: result.url!,
@@ -199,7 +199,7 @@ export function createRequest(
             searchResult: result.url && result.title ? result : undefined,
             timeMeasures: timeMeasures ? [...timeMeasures] : [],
             contentScraperSettings,
-            userAuthorization,
+            actorRequestId,
         },
     };
 }

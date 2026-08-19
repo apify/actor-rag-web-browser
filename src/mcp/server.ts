@@ -11,7 +11,7 @@ import type { Input } from '../types.js';
 export class McpServer {
     private server: Server;
     private toolName: string;
-    private userAuthorization?: string;
+    private actorRequestId?: string;
 
     constructor() {
         const miniActor = getMiniActor();
@@ -58,15 +58,15 @@ export class McpServer {
         this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
             const { name, arguments: args } = request.params;
             if (name === this.toolName) {
-                const content = await handleModelContextProtocol(args as unknown as Input, this.userAuthorization);
+                const content = await handleModelContextProtocol(args as unknown as Input, this.actorRequestId);
                 return { content: content.map((message) => ({ type: 'text', text: JSON.stringify(message) })) };
             }
             throw new Error(`Unknown tool: ${name}`);
         });
     }
 
-    async connect(transport: Transport, userAuthorization?: string): Promise<void> {
-        this.userAuthorization = userAuthorization;
+    async connect(transport: Transport, actorRequestId?: string): Promise<void> {
+        this.actorRequestId = actorRequestId;
         await this.server.connect(transport);
     }
 }

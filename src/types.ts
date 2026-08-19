@@ -111,7 +111,7 @@ export type SearchCrawlerUserData = {
     currentPage: number;
     /** Max pages: ceil(maxResults/10) + 1 to handle pages with <10 results */
     totalPages: number;
-    userAuthorization?: string;
+    actorRequestId?: string;
 };
 
 /**
@@ -127,7 +127,7 @@ export type ContentCrawlerUserData = {
     searchResult?: OrganicResult;
     contentCrawlerKey?: string;
     contentScraperSettings: ContentScraperSettings;
-    userAuthorization?: string;
+    actorRequestId?: string;
 };
 
 export type Output = {

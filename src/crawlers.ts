@@ -20,7 +20,7 @@ import { ContentCrawlerTypes, GOOGLE_STANDARD_RESULTS_PER_PAGE } from './const.j
 import { deduplicateResults, scrapeOrganicResults } from './google-search/google-extractors-urls.js';
 import { getMiniActor } from './mini-actors.js';
 import { failedRequestHandler, requestHandlerCheerio, requestHandlerPlaywright } from './request-handler.js';
-import { addEmptyResultToResponse, sendResponseError } from './responses.js';
+import { addEmptyResultToResponse, sendResponseError, sendResponseIfFinished } from './responses.js';
 import type { ContentCrawlerOptions, ContentCrawlerUserData, SearchCrawlerUserData } from './types.js';
 import { addTimeMeasureEvent, createRequest, createSearchRequest, isActorStandby, randomId } from './utils.js';
 
@@ -107,7 +107,7 @@ export async function createAndStartSearchCrawler(
             const organicResults = scrapeOrganicResults($);
 
             // Destructure userData for easier access (pagination fields are initialized in createSearchRequest)
-            const { collectedResults, currentPage, totalPages, maxResults, userAuthorization } = request.userData;
+            const { collectedResults, currentPage, totalPages, maxResults, actorRequestId } = request.userData;
 
             // Merge with previously collected results and deduplicate
             const allResults = [...collectedResults, ...organicResults];
@@ -155,7 +155,7 @@ export async function createAndStartSearchCrawler(
                         responseId,
                         request.userData.contentScraperSettings!,
                         request.userData.timeMeasures!,
-                        userAuthorization,
+                        actorRequestId,
                     );
                     await addContentCrawlRequest(r, responseId, request.userData.contentCrawlerKey!);
                 }
@@ -232,10 +232,12 @@ async function createPlaywrightContentCrawler(
         requestHandler: (async (context) => {
             const typedContext = context as unknown as PlaywrightCrawlingContext<ContentCrawlerUserData>;
             await requestHandlerPlaywright(typedContext, blocker);
-            await maybeCharge(ContentCrawlerTypes.PLAYWRIGHT, typedContext.request.userData.userAuthorization);
+            await maybeCharge(ContentCrawlerTypes.PLAYWRIGHT, typedContext.request.userData.actorRequestId);
+            sendResponseIfFinished(typedContext.request.userData.responseId!);
         }),
         failedRequestHandler: async ({ request }, err) => {
             await failedRequestHandler(request, err, ContentCrawlerTypes.PLAYWRIGHT);
+            sendResponseIfFinished(request.userData.responseId!);
         },
     });
 }
@@ -253,10 +255,12 @@ async function createCheerioContentCrawler(
         requestHandler: (async (context) => {
             const typedContext = context as unknown as CheerioCrawlingContext<ContentCrawlerUserData>;
             await requestHandlerCheerio(typedContext);
-            await maybeCharge(ContentCrawlerTypes.CHEERIO, typedContext.request.userData.userAuthorization);
+            await maybeCharge(ContentCrawlerTypes.CHEERIO, typedContext.request.userData.actorRequestId);
+            sendResponseIfFinished(typedContext.request.userData.responseId!);
         }),
         failedRequestHandler: async ({ request }, err) => {
             await failedRequestHandler(request, err, ContentCrawlerTypes.CHEERIO);
+            sendResponseIfFinished(request.userData.responseId!);
         },
     });
 }
@@ -276,9 +280,9 @@ async function chargeNormal(eventName: string): Promise<void> {
 
 /**
  * Multi-tenant standby charging: POSTs directly to the platform charge REST endpoint,
- * passing the calling end-user's authorization so that user (not the Actor owner) is billed.
+ * passing the calling request's ID so that the correct caller (not the Actor owner) is billed.
  */
-async function chargeStandby(eventName: string, userAuthorization: string): Promise<void> {
+async function chargeStandby(eventName: string, actorRequestId: string): Promise<void> {
     const { apiBaseUrl, actorRunId, token } = Actor.getEnv();
     if (!apiBaseUrl || !actorRunId || !token) {
         log.warning(`Skipping standby charge for ${eventName} event: missing apiBaseUrl/actorRunId/token from Actor.getEnv().`);
@@ -292,7 +296,7 @@ async function chargeStandby(eventName: string, userAuthorization: string): Prom
             Authorization: `Bearer ${token}`,
             'Idempotency-Key': randomId(),
         },
-        body: JSON.stringify({ eventName, count: 1, userAuthorization }),
+        body: JSON.stringify({ eventName, count: 1, requestId: actorRequestId }),
     });
     if (!response.ok) {
         const resText = await response.text();
@@ -304,21 +308,29 @@ async function chargeStandby(eventName: string, userAuthorization: string): Prom
  * Dispatches to the correct charging path (normal single-run vs. multi-tenant standby)
  * based on isActorStandby().
  */
-async function maybeCharge(crawlerType: ContentCrawlerTypes, userAuthorization?: string) {
+const CHARGE_TIMEOUT_MILLIS = 5_000;
+
+async function maybeCharge(crawlerType: ContentCrawlerTypes, actorRequestId?: string) {
     if (getMiniActor().name !== 'url-to-markdown') {
         return;
     }
     const eventName = getEventName(crawlerType);
     try {
-        if (isActorStandby()) {
-            if (!userAuthorization) {
-                log.warning(`Skipping standby charge for ${eventName} event: missing userAuthorization (x-apify-user-authorization header was not provided).`);
-                return;
-            }
-            await chargeStandby(eventName, userAuthorization);
-        } else {
-            await chargeNormal(eventName);
-        }
+        const chargePromise = isActorStandby()
+            ? (async () => {
+                if (!actorRequestId) {
+                    log.warning(`Skipping standby charge for ${eventName} event: missing actorRequestId (x-actor-request-id header was not provided).`);
+                    return;
+                }
+                await chargeStandby(eventName, actorRequestId);
+            })()
+            : chargeNormal(eventName);
+
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error(`Charging timed out after ${CHARGE_TIMEOUT_MILLIS} ms`)), CHARGE_TIMEOUT_MILLIS);
+        });
+
+        await Promise.race([chargePromise, timeoutPromise]);
     } catch (err) {
         log.error(`Failed to charge for ${eventName} event: ${err instanceof Error ? err.message : String(err)}`);
     }
