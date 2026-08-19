@@ -13,23 +13,26 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: 22
-        cache: 'npm'
+        cache: 'pnpm'
 
     - name: Install dependencies
-      run: npm ci
+      run: pnpm install --frozen-lockfile
 
     - name: Build
-      run: npm run build
+      run: pnpm run build
 
     - name: Lint
-      run: npm run lint
+      run: pnpm run lint
 
     - name: Install Playwright
-      run: npx playwright install firefox --with-deps
+      run: pnpm exec playwright install firefox --with-deps
 
     - name: Test
-      run: npm run test
+      run: pnpm run test

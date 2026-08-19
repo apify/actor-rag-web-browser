@@ -1,0 +1,5 @@
+patchedDependencies:
+  'playwright-core@1.55.1': patches/playwright-core@1.55.1.patch
+
+allowBuilds:
+  esbuild: true
