@@ -299,6 +299,7 @@ function validateAndFillInput(input: Partial<Input>): Input {
     } else if (input.scrapingTool !== 'browser-playwright' && input.scrapingTool !== 'raw-http') {
         throw new UserInputError('The `scrapingTool` parameter must be either `browser-playwright` or `raw-http`.');
     }
+    warnIfLowMemoryForPlaywright(input.scrapingTool, Actor.getEnv().memoryMbytes ?? undefined);
 
     // Remove elements CSS selector
     if (!input.removeElementsCssSelector) {
@@ -326,6 +327,28 @@ function validateAndFillInput(input: Partial<Input>): Input {
 
     return input as Input;
     /* eslint-enable no-param-reassign */
+}
+
+/**
+ * Playwright needs meaningfully more memory (and, since Apify ties CPU share to the memory tier, more CPU)
+ * than the raw-HTTP path to render a page within the request timeout. Usage data shows runs on the
+ * `browser-playwright` tool time out ~35% of the time at the 1024 MB tier, vs. ~1% at 2048 MB and above,
+ * so we warn users into bumping memory rather than letting them discover the timeouts themselves.
+ */
+const LOW_MEMORY_FOR_PLAYWRIGHT_MBYTES = 1024;
+const RECOMMENDED_PLAYWRIGHT_MEMORY_MBYTES = 4096;
+const MIN_RECOMMENDED_PLAYWRIGHT_MEMORY_MBYTES = 2048;
+
+export function warnIfLowMemoryForPlaywright(scrapingTool: ScrapingTool, memoryMbytes: number | undefined) {
+    if (scrapingTool !== 'browser-playwright' || memoryMbytes === undefined) return;
+    if (memoryMbytes <= LOW_MEMORY_FOR_PLAYWRIGHT_MBYTES) {
+        log.warning(
+            `This run has only ${memoryMbytes} MB of memory allocated while using the \`browser-playwright\` `
+            + 'scraping tool. Playwright runs are significantly more likely to time out at this memory tier. '
+            + `Consider increasing the run's memory to at least ${MIN_RECOMMENDED_PLAYWRIGHT_MEMORY_MBYTES} MB, `
+            + `ideally ${RECOMMENDED_PLAYWRIGHT_MEMORY_MBYTES} MB, to reduce the risk of timeouts.`,
+        );
+    }
 }
 
 function validateRange(
