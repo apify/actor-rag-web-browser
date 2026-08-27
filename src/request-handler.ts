@@ -204,7 +204,7 @@ async function handleContent(
             description: $('meta[name=description]').first().attr('content') ?? undefined,
             keywords: $('meta[name=keywords]').first().attr('content') ?? undefined,
             languageCode: $html.first().attr('lang') ?? undefined,
-            url: request.url,
+            url: request.loadedUrl ?? request.url,
             redirectedUrl: request.loadedUrl,
             canonicalUrl: extractCanonicalUrl($, request.loadedUrl ?? request.url),
             openGraph: extractOpenGraphProperties($),
