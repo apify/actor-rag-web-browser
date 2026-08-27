@@ -104,7 +104,7 @@ export async function createAndStartSearchCrawler(
             const $ = _$ as CheerioAPI;
 
             log.info(`Search-crawler requestHandler: Processing URL: ${request.url}`);
-            const organicResults = scrapeOrganicResults($);
+            const organicResults = scrapeOrganicResults($, request.loadedUrl ?? request.url);
 
             // Destructure userData for easier access (pagination fields are initialized in createSearchRequest)
             const { collectedResults, currentPage, totalPages, maxResults, actorRequestId } = request.userData;

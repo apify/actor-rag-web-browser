@@ -3,29 +3,34 @@ import type { Element } from 'domhandler';
 
 import type { OrganicResult, SearchResultType } from '../types.js';
 
-/**
- * Validates if a URL is a valid absolute URL (starts with http/https or is a valid relative URL).
- * Filters out Google's internal search URLs and other invalid URLs.
- *
- * Why this validation is needed:
- * - Google SERP results sometimes contain internal links like "/search?q=..." which are not valid URLs to crawl
- * - Some results may have malformed or incomplete URLs extracted from the HTML
- * - Without validation, invalid URLs cause errors when trying to crawl them and fail the content crawl request
- * - This ensures only legitimate external URLs are queued for content extraction
- */
+// Google's click-tracking redirect endpoints, sometimes served instead of a plain result anchor.
+// Relative to the page origin; crawling them lets Google's redirect resolve to the real destination.
+const GOOGLE_REDIRECT_PATH_PREFIXES = ['/goto', '/url'];
+
+function isGoogleRedirectPath(href: string): boolean {
+    return GOOGLE_REDIRECT_PATH_PREFIXES.some((prefix) => href === prefix || href.startsWith(`${prefix}?`) || href.startsWith(`${prefix}/`));
+}
+
+/** Resolves a Google redirect href against the page it was loaded from. */
+function resolveUrl(href: string, pageUrl: string): string {
+    try {
+        return new URL(href, pageUrl).href;
+    } catch {
+        return href;
+    }
+}
+
+/** Validates that a URL is absolute http/https and not one of Google's own internal search links. */
 function isValidUrl(url: string): boolean {
     if (!url || typeof url !== 'string') {
         return false;
     }
 
-    // Reject Google's internal search URLs (relative URLs starting with /search)
-    if (url.startsWith('/search')) {
-        return false;
-    }
-
-    // Check if it's a valid HTTP/HTTPS URL
     try {
-        const urlObj = new URL(url, 'http://example.com'); // Use base URL for relative URL handling
+        const urlObj = new URL(url);
+        if ((urlObj.hostname === 'google.com' || urlObj.hostname.endsWith('.google.com')) && urlObj.pathname.startsWith('/search')) {
+            return false;
+        }
         return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
     } catch {
         return false;
@@ -52,14 +57,15 @@ export const deduplicateResults = <T extends { title?: string; url?: string }>(r
 /**
  * Parses a single organic search result (source: @apify/google-search).
  */
-const parseResult = ($: CheerioAPI, el: Element) => {
+const parseResult = ($: CheerioAPI, el: Element, pageUrl: string) => {
     $(el).find('div.action-menu').remove();
 
     const descriptionSelector = '.VwiC3b';
+    const href = $(el).find('a').first().attr('href') || '';
     const searchResult: OrganicResult = {
         title: $(el).find('h3').first().text() || '',
         description: ($(el).find(descriptionSelector).text() || '').trim(),
-        url: $(el).find('a').first().attr('href') || '',
+        url: href && isGoogleRedirectPath(href) ? resolveUrl(href, pageUrl) : href,
     };
 
     return searchResult;
@@ -68,11 +74,11 @@ const parseResult = ($: CheerioAPI, el: Element) => {
 /**
  * Extracts search results from the given selectors (source: @apify/google-search).
  */
-const extractResultsFromSelectors = ($: CheerioAPI, selectors: string[]) => {
+const extractResultsFromSelectors = ($: CheerioAPI, selectors: string[], pageUrl: string) => {
     const searchResults: OrganicResult[] = [];
     const selector = selectors.join(', ');
     for (const resultEl of $(selector)) {
-        const results = $(resultEl).map((_i, el) => parseResult($, el as Element)).toArray();
+        const results = $(resultEl).map((_i, el) => parseResult($, el as Element, pageUrl)).toArray();
         for (const result of results) {
             // Only include results with both title and a valid URL
             // URL validation filters out Google's internal search links and malformed URLs
@@ -96,7 +102,7 @@ const areTheResultsSuggestions = ($: CheerioAPI) => {
 /**
  * Extracts organic search results from the given Cheerio instance (source: @apify/google-search).
  */
-export const scrapeOrganicResults = ($: CheerioAPI): OrganicResult[] => {
+export const scrapeOrganicResults = ($: CheerioAPI, pageUrl: string): OrganicResult[] => {
     const resultSelectors2023January = [
         '.hlcw0c', // Top result with site links
         '.g.Ww4FFb', // General search results
@@ -107,7 +113,7 @@ export const scrapeOrganicResults = ($: CheerioAPI): OrganicResult[] => {
         '.sATSHe', // another new selector in March 2025
     ];
 
-    const searchResults = extractResultsFromSelectors($, resultSelectors2023January);
+    const searchResults = extractResultsFromSelectors($, resultSelectors2023January, pageUrl);
     const deduplicatedResults = deduplicateResults(searchResults);
     let resultType: SearchResultType = 'ORGANIC';
     if (areTheResultsSuggestions($)) {
