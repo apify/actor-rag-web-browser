@@ -85,4 +85,4 @@ ENV PLAYWRIGHT_FIREFOX_POLICIES_JSON="/home/myuser/policies.json"
 ENV NODE_NO_WARNINGS=1
 
 # Run the image.
-CMD ["pnpm", "run", "start:prod", "--silent"]
+CMD ["pnpm", "--silent", "run", "start:prod"]

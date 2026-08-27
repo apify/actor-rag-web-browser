@@ -34,7 +34,7 @@ importers:
         version: 1.2.0
       crawlee:
         specifier: ^3.15.3
-        version: 3.18.1(@types/node@22.20.1)(playwright@1.55.1)(supports-color@7.2.0)
+        version: 3.18.1(@types/node@22.20.1)(idcac-playwright@0.2.0)(playwright@1.55.1)(supports-color@7.2.0)
       express:
         specifier: ^4.21.2
         version: 4.22.2(supports-color@7.2.0)
@@ -90,6 +90,9 @@ importers:
       globals:
         specifier: ^16.0.0
         version: 16.5.0
+      idcac-playwright:
+        specifier: ^0.2.0
+        version: 0.2.0
       tsx:
         specifier: ^4.6.2
         version: 4.23.12
@@ -1603,6 +1606,7 @@ packages:
   eslint@9.39.5:
     resolution: {integrity: sha512-DgZS62aPLXKlnxILS/AYCoRvHaZeXceIzlXPkkGGzJWSow1aEk0lbTlxUSlyjC8jcaKxAdOnTDz+o1JFSBsyjw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -1963,6 +1967,9 @@ packages:
   iconv-lite@0.7.3:
     resolution: {integrity: sha512-IKXpvIzjnC9XTAUbVBcMfGS0EPaIXtW6v+zr+RRp+hqULEpo0owZax6wyRwPOJbWbzjYspQwusTsfVr0ifh4uQ==}
     engines: {node: '>=0.10.0'}
+
+  idcac-playwright@0.2.0:
+    resolution: {integrity: sha512-qJH7vQgq3TKnhea/3Z3jlEJL7NC9vK9BkLClAzQHVRepBtq1fWfSI4fSuMKcPq7nDUTTlIEIS+vU+GRwwR1BXw==}
 
   ieee754@1.2.1:
     resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
@@ -3621,7 +3628,7 @@ snapshots:
       proper-lockfile: 4.1.2
       tslib: 2.8.1
 
-  '@crawlee/playwright@3.18.1(playwright@1.55.1)(supports-color@7.2.0)':
+  '@crawlee/playwright@3.18.1(idcac-playwright@0.2.0)(playwright@1.55.1)(supports-color@7.2.0)':
     dependencies:
       '@apify/datastructures': 2.0.6
       '@apify/log': 2.5.48
@@ -3641,12 +3648,13 @@ snapshots:
       tslib: 2.8.1
       type-fest: 4.41.0
     optionalDependencies:
+      idcac-playwright: 0.2.0
       playwright: 1.55.1
     transitivePeerDependencies:
       - puppeteer
       - supports-color
 
-  '@crawlee/puppeteer@3.18.1(playwright@1.55.1)(supports-color@7.2.0)':
+  '@crawlee/puppeteer@3.18.1(idcac-playwright@0.2.0)(playwright@1.55.1)(supports-color@7.2.0)':
     dependencies:
       '@apify/datastructures': 2.0.6
       '@apify/log': 2.5.48
@@ -3659,6 +3667,8 @@ snapshots:
       jquery: 3.7.1
       ow: 0.28.2
       tslib: 2.8.1
+    optionalDependencies:
+      idcac-playwright: 0.2.0
     transitivePeerDependencies:
       - playwright
       - supports-color
@@ -4676,7 +4686,7 @@ snapshots:
       object-assign: 4.1.1
       vary: 1.1.2
 
-  crawlee@3.18.1(@types/node@22.20.1)(playwright@1.55.1)(supports-color@7.2.0):
+  crawlee@3.18.1(@types/node@22.20.1)(idcac-playwright@0.2.0)(playwright@1.55.1)(supports-color@7.2.0):
     dependencies:
       '@crawlee/basic': 3.18.1(supports-color@7.2.0)
       '@crawlee/browser': 3.18.1(playwright@1.55.1)(supports-color@7.2.0)
@@ -4688,12 +4698,13 @@ snapshots:
       '@crawlee/jsdom': 3.18.1(supports-color@7.2.0)
       '@crawlee/linkedom': 3.18.1(supports-color@7.2.0)
       '@crawlee/memory-storage': 3.18.1
-      '@crawlee/playwright': 3.18.1(playwright@1.55.1)(supports-color@7.2.0)
-      '@crawlee/puppeteer': 3.18.1(playwright@1.55.1)(supports-color@7.2.0)
+      '@crawlee/playwright': 3.18.1(idcac-playwright@0.2.0)(playwright@1.55.1)(supports-color@7.2.0)
+      '@crawlee/puppeteer': 3.18.1(idcac-playwright@0.2.0)(playwright@1.55.1)(supports-color@7.2.0)
       '@crawlee/utils': 3.18.1(supports-color@7.2.0)
       import-local: 3.2.0
       tslib: 2.8.1
     optionalDependencies:
+      idcac-playwright: 0.2.0
       playwright: 1.55.1
     transitivePeerDependencies:
       - '@types/node'
@@ -5610,6 +5621,8 @@ snapshots:
   iconv-lite@0.7.3:
     dependencies:
       safer-buffer: 2.1.2
+
+  idcac-playwright@0.2.0: {}
 
   ieee754@1.2.1: {}
 
