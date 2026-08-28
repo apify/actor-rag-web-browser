@@ -1,8 +1,7 @@
 import type { Server } from 'node:http';
 
-import { MemoryStorage } from '@crawlee/memory-storage';
 import { RequestQueue } from 'apify';
-import { Configuration, log, PlaywrightCrawler, type PlaywrightCrawlingContext } from 'crawlee';
+import { Configuration, log, MemoryStorageBackend, PlaywrightCrawler, type PlaywrightCrawlingContext } from 'crawlee';
 import { firefox } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -35,11 +34,11 @@ describe('Playwright Crawler Content Tests', () => {
         const failedUrls = new Set<string>();
 
         // Create memory storage and request queue
-        const client = new MemoryStorage({ persistStorage: false });
-        const requestQueue = await RequestQueue.open('test-queue', { storageClient: client });
+        const storageBackend = new MemoryStorageBackend();
+        const requestQueue = await RequestQueue.open('test-queue', { storageBackend });
 
         const crawler = new PlaywrightCrawler({
-            requestQueue,
+            requestManager: requestQueue,
             requestHandler: async (context) => {
                 vi.spyOn(context, 'pushData').mockImplementation(async (data) => {
                     results.push(data as Output);
@@ -57,9 +56,10 @@ describe('Playwright Crawler Content Tests', () => {
                     headless: true,
                 },
             },
-        }, new Configuration({
-            persistStorage: false,
-        }));
+            configuration: new Configuration({
+                persistStorage: false,
+            }),
+        });
 
         const r = createRequest(
             'query',

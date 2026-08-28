@@ -1,9 +1,8 @@
 import type { Server } from 'node:http';
 
 import { ImpitHttpClient } from '@crawlee/impit-client';
-import { MemoryStorage } from '@crawlee/memory-storage';
 import { RequestQueue } from 'apify';
-import { CheerioCrawler, type CheerioCrawlingContext, Configuration, log } from 'crawlee';
+import { CheerioCrawler, type CheerioCrawlingContext, Configuration, log, MemoryStorageBackend } from 'crawlee';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { ContentCrawlerTypes } from '../src/const.js';
@@ -33,11 +32,11 @@ describe('Cheerio Crawler Content Tests', () => {
         const successUrls = new Set<string>();
 
         // Create memory storage and request queue
-        const client = new MemoryStorage({ persistStorage: false });
-        const requestQueue = await RequestQueue.open('test-queue', { storageClient: client });
+        const storageBackend = new MemoryStorageBackend();
+        const requestQueue = await RequestQueue.open('test-queue', { storageBackend });
 
         const crawler = new CheerioCrawler({
-            requestQueue,
+            requestManager: requestQueue,
             requestHandler: async (context: CheerioCrawlingContext<ContentCrawlerUserData>) => {
                 const pushDataSpy = vi.spyOn(context, 'pushData').mockResolvedValue(undefined);
                 await requestHandlerCheerio(context);
@@ -55,9 +54,10 @@ describe('Cheerio Crawler Content Tests', () => {
                 log.error(`Request ${request.url} failed with error: ${error.message}`);
                 failedUrls.add(request.url);
             },
-        }, new Configuration({
-            persistStorage: false,
-        }));
+            configuration: new Configuration({
+                persistStorage: false,
+            }),
+        });
 
         const r = createRequest(
             'query',

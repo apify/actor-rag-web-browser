@@ -217,6 +217,6 @@ export async function handleSearchNormalMode(
     await contentCrawler!.run();
     /* eslint-enable no-param-reassign */
 
-    const { requestsFinished, requestsFailed } = contentCrawler!.stats.state;
+    const { requestsFinished, requestsFailed } = contentCrawler!.statistics.state;
     return { requestsFinished, requestsFailed };
 }

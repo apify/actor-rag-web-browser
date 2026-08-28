@@ -4,17 +4,16 @@
     "type": "module",
     "description": "RAG Web Browser - run Google Search queries and extract content from the top search results.",
     "engines": {
-        "node": ">=20.0.0"
+        "node": ">=22.0.0"
     },
     "dependencies": {
-        "@crawlee/impit-client": "^3.17.0",
-        "@crawlee/memory-storage": "^3.11.1",
+        "@crawlee/impit-client": "^4.0.0-rc.0",
         "@ghostery/adblocker-playwright": "^2.5.2",
         "@modelcontextprotocol/sdk": "^1.0.4",
         "@mozilla/readability": "^0.6.0",
-        "apify": "^3.7.2",
+        "apify": "^4.0.0-beta.29",
         "cheerio": "^1.0.0-rc.12",
-        "crawlee": "^3.15.3",
+        "crawlee": "^4.0.0-rc.0",
         "express": "^4.21.2",
         "joplin-turndown-plugin-gfm": "^1.0.12",
         "jsdom": "^24.1.1",

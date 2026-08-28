@@ -1,7 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
 import { ImpitHttpClient } from '@crawlee/impit-client';
-import { MemoryStorage } from '@crawlee/memory-storage';
 import { PlaywrightBlocker } from '@ghostery/adblocker-playwright';
 import { Actor, RequestQueue } from 'apify';
 import {
@@ -10,6 +9,7 @@ import {
     type CheerioCrawlerOptions,
     type CheerioCrawlingContext,
     log,
+    MemoryStorageBackend,
     PlaywrightCrawler,
     type PlaywrightCrawlerOptions,
     type PlaywrightCrawlingContext,
@@ -25,7 +25,7 @@ import type { ContentCrawlerOptions, ContentCrawlerUserData, SearchCrawlerUserDa
 import { addTimeMeasureEvent, createRequest, createSearchRequest, isActorStandby, randomId } from './utils.js';
 
 const crawlers = new Map<string, CheerioCrawler | PlaywrightCrawler>();
-const client = new MemoryStorage({ persistStorage: false });
+const storageBackend = new MemoryStorageBackend();
 
 const contentCrawlerHttpClient = new ImpitHttpClient({
     browser: 'firefox144',
@@ -51,7 +51,9 @@ async function getGhosteryBlocker(): Promise<PlaywrightBlocker | undefined> {
 }
 
 export function getCrawlerKey(crawlerOptions: CheerioCrawlerOptions | PlaywrightCrawlerOptions) {
-    return JSON.stringify(crawlerOptions);
+    // `browserPool` (Playwright) is now a live BrowserPool instance rather than a plain options object,
+    // so it must be excluded to avoid JSON.stringify choking on its internal circular/timer references.
+    return JSON.stringify(crawlerOptions, (key, value) => (key === 'browserPool' ? undefined : value));
 }
 
 /**
@@ -71,7 +73,7 @@ export const addContentCrawlRequest = async (
         return;
     }
     try {
-        await crawler.requestQueue!.addRequest(request);
+        await (await crawler.getRequestManager()).addRequest(request);
         // create an empty result in search request response
         // do not use request.uniqueKey as responseId as it is not id of a search request
         addEmptyResultToResponse(responseId, request);
@@ -88,18 +90,19 @@ export const addContentCrawlRequest = async (
 export async function createAndStartSearchCrawler(
     searchCrawlerOptions: CheerioCrawlerOptions,
     startCrawler = true,
-) {
+): Promise<{ key: string; crawler: CheerioCrawler | PlaywrightCrawler }> {
     const key = getCrawlerKey(searchCrawlerOptions);
     if (crawlers.has(key)) {
-        return { key, crawler: crawlers.get(key) };
+        return { key, crawler: crawlers.get(key)! };
     }
 
     log.info(`Creating new cheerio crawler with key ${key}`);
-    const crawler = new CheerioCrawler({
+    const crawler: CheerioCrawler = new CheerioCrawler({
         ...(searchCrawlerOptions as CheerioCrawlerOptions),
-        requestQueue: await RequestQueue.open(key, { storageClient: client }),
-        requestHandler: async ({ request, $: _$, addRequests }: CheerioCrawlingContext<SearchCrawlerUserData>) => {
+        requestManager: await RequestQueue.open(key, { storageBackend }),
+        requestHandler: (async (context) => {
             // NOTE: we need to cast this to fix `cheerio` type errors
+            const { request, $: _$, addRequests } = context as unknown as CheerioCrawlingContext<SearchCrawlerUserData>;
             addTimeMeasureEvent(request.userData!, 'cheerio-request-handler-start');
             const $ = _$ as CheerioAPI;
 
@@ -160,7 +163,7 @@ export async function createAndStartSearchCrawler(
                     await addContentCrawlRequest(r, responseId, request.userData.contentCrawlerKey!);
                 }
             }
-        },
+        }),
         failedRequestHandler: async ({ request }, err) => {
             addTimeMeasureEvent(request.userData!, 'cheerio-failed-request');
             log.error(`Google-search-crawler failed to process request ${request.url}, error ${err.message}`);
@@ -189,12 +192,12 @@ export async function createAndStartSearchCrawler(
 export async function createAndStartContentCrawler(
     contentCrawlerOptions: ContentCrawlerOptions,
     startCrawler = true,
-) {
+): Promise<{ key: string; crawler: CheerioCrawler | PlaywrightCrawler }> {
     const { type: crawlerType, crawlerOptions } = contentCrawlerOptions;
 
     const key = getCrawlerKey(crawlerOptions);
     if (crawlers.has(key)) {
-        return { key, crawler: crawlers.get(key) };
+        return { key, crawler: crawlers.get(key)! };
     }
 
     const crawler = crawlerType === 'playwright'
@@ -228,7 +231,7 @@ async function createPlaywrightContentCrawler(
     return new PlaywrightCrawler({
         ...crawlerOptions,
         keepAlive: crawlerOptions.keepAlive,
-        requestQueue: await RequestQueue.open(key, { storageClient: client }),
+        requestManager: await RequestQueue.open(key, { storageBackend }),
         requestHandler: (async (context) => {
             const typedContext = context as unknown as PlaywrightCrawlingContext<ContentCrawlerUserData>;
             await requestHandlerPlaywright(typedContext, blocker);
@@ -251,7 +254,7 @@ async function createCheerioContentCrawler(
         ...crawlerOptions,
         keepAlive: crawlerOptions.keepAlive,
         httpClient: contentCrawlerHttpClient,
-        requestQueue: await RequestQueue.open(key, { storageClient: client }),
+        requestManager: await RequestQueue.open(key, { storageBackend }),
         requestHandler: (async (context) => {
             const typedContext = context as unknown as CheerioCrawlingContext<ContentCrawlerUserData>;
             await requestHandlerCheerio(typedContext);
@@ -352,6 +355,6 @@ export const addSearchRequest = async (
         return;
     }
     addTimeMeasureEvent(request.userData!, 'before-cheerio-queue-add');
-    await crawler.requestQueue!.addRequest(request);
+    await (await crawler.getRequestManager()).addRequest(request);
     log.info(`Added request to cheerio-google-search-crawler: ${request.url}`);
 };

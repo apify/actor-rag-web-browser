@@ -1,7 +1,7 @@
 import type { ProxyConfigurationOptions } from 'apify';
 import { Actor } from 'apify';
-import type { CheerioCrawlerOptions, ProxyConfiguration } from 'crawlee';
-import { BrowserName, log } from 'crawlee';
+import type { CheerioCrawlerOptions, IProxyConfiguration } from 'crawlee';
+import { BrowserName, log, playwrightBrowserPool } from 'crawlee';
 import { firefox } from 'playwright';
 
 import ragWebBrowserInputSchema from '../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
@@ -25,7 +25,12 @@ import { abortRun } from './utils.js';
  * Processes the input and returns an array of crawler settings. This is ideal for startup of STANDBY mode
  * because it makes it simple to start all crawlers at once.
  */
-export async function processStandbyInput(originalInput: Partial<Input>) {
+export async function processStandbyInput(originalInput: Partial<Input>): Promise<{
+    input: Input;
+    searchCrawlerOptions: CheerioCrawlerOptions;
+    contentCrawlerOptions: ContentCrawlerOptions[];
+    contentScraperSettings: ContentScraperSettings;
+}> {
     const { input, searchCrawlerOptions, contentScraperSettings } = await processInputInternal(originalInput, true);
 
     const proxy = await createContentProxyConfiguration(input.proxyConfiguration);
@@ -40,7 +45,12 @@ export async function processStandbyInput(originalInput: Partial<Input>) {
 /**
  * Processes the input and returns the settings for the crawler.
  */
-export async function processInput(originalInput: Partial<Input>) {
+export async function processInput(originalInput: Partial<Input>): Promise<{
+    input: Input;
+    searchCrawlerOptions: CheerioCrawlerOptions;
+    contentCrawlerOptions: ContentCrawlerOptions;
+    contentScraperSettings: ContentScraperSettings;
+}> {
     const { input, searchCrawlerOptions, contentScraperSettings } = await processInputInternal(originalInput);
 
     const proxy = await createContentProxyConfiguration(input.proxyConfiguration);
@@ -57,7 +67,7 @@ export async function processInput(originalInput: Partial<Input>) {
 async function processInputInternal(
     originalInput: Partial<Input>,
     standbyInit = false,
-) {
+): Promise<{ input: Input; searchCrawlerOptions: CheerioCrawlerOptions; contentScraperSettings: ContentScraperSettings }> {
     const miniActor = getMiniActor();
     let input: Input;
     let searchCrawlerOptions: CheerioCrawlerOptions = {};
@@ -172,7 +182,9 @@ async function processRagWebBrowserInput(input: Partial<RagWebBrowserInput>, sta
         keepAlive: standbyInit,
         maxRequestRetries: input.serpMaxRetries,
         proxyConfiguration: proxySearch,
-        autoscaledPoolOptions: { desiredConcurrency: 1 },
+        // Pagination is sequential (each page depends on the previous one), so the crawler must never scale beyond 1.
+        minConcurrency: 1,
+        maxConcurrency: 1,
     };
     const validatedRagBrowserInput = validateAndFillInput(input) as RagWebBrowserInput;
     return {
@@ -211,7 +223,7 @@ async function processUrlToMarkdownInput(input: Partial<UrlToMarkdownInput>): Pr
     return validatedInput;
 }
 
-async function createContentProxyConfiguration(proxyConfiguration: ProxyConfigurationOptions) {
+async function createContentProxyConfiguration(proxyConfiguration: ProxyConfigurationOptions): Promise<IProxyConfiguration | undefined> {
     try {
         return await Actor.createProxyConfiguration(proxyConfiguration);
     } catch (e) {
@@ -221,7 +233,7 @@ async function createContentProxyConfiguration(proxyConfiguration: ProxyConfigur
 
 function createPlaywrightCrawlerOptions(
     input: Input,
-    proxy: ProxyConfiguration | undefined,
+    proxy: IProxyConfiguration | undefined,
     keepAlive = true,
 ): ContentCrawlerOptions {
     const { maxRequestRetries, desiredConcurrency } = input;
@@ -229,41 +241,38 @@ function createPlaywrightCrawlerOptions(
     return {
         type: ContentCrawlerTypes.PLAYWRIGHT,
         crawlerOptions: {
-            headless: true,
             keepAlive,
             maxRequestRetries,
             proxyConfiguration: proxy,
             requestHandlerTimeoutSecs: input.requestTimeoutSecs,
-            launchContext: {
-                launcher: firefox,
-            },
             preNavigationHooks: [
                 async ({ page }) => {
                     await blockMediaRequests(page);
                 },
-                (_context, gotoOptions) => {
-                    // eslint-disable-next-line no-param-reassign
-                    gotoOptions.waitUntil = 'domcontentloaded';
+                (context) => {
+                    context.gotoOptions.waitUntil = 'domcontentloaded';
                 },
             ],
-            browserPoolOptions: {
+            browserPool: playwrightBrowserPool({
+                headless: true,
+                launchContext: {
+                    launcher: firefox,
+                },
                 fingerprintOptions: {
                     fingerprintGeneratorOptions: {
                         browsers: [BrowserName.firefox],
                     },
                 },
                 retireInactiveBrowserAfterSecs: 60,
-            },
-            autoscaledPoolOptions: {
-                desiredConcurrency,
-            },
+            }),
+            minConcurrency: desiredConcurrency,
         },
     };
 }
 
 function createCheerioCrawlerOptions(
     input: Input,
-    proxy: ProxyConfiguration | undefined,
+    proxy: IProxyConfiguration | undefined,
     keepAlive = true,
 ): ContentCrawlerOptions {
     const { maxRequestRetries, desiredConcurrency } = input;
@@ -275,9 +284,7 @@ function createCheerioCrawlerOptions(
             maxRequestRetries,
             proxyConfiguration: proxy,
             requestHandlerTimeoutSecs: input.requestTimeoutSecs,
-            autoscaledPoolOptions: {
-                desiredConcurrency,
-            },
+            minConcurrency: desiredConcurrency,
         },
     };
 }

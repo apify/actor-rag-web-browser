@@ -187,7 +187,7 @@ async function handleContent(
     addTimeMeasureEvent(request.userData, `${crawlerType}-process-html`);
 
     const isTooLarge = processedHtml.length > settings.maxHtmlCharsToProcess;
-    const text = isTooLarge ? load(processedHtml).text() : htmlToText(load(processedHtml).html());
+    const text = isTooLarge ? load(processedHtml).text() : await htmlToText(load(processedHtml).html());
 
     const result: Output = {
         crawl: {
@@ -236,7 +236,7 @@ export async function requestHandlerPlaywright(
     context: PlaywrightCrawlingContext<ContentCrawlerUserData>,
     blocker?: PlaywrightBlocker,
 ) {
-    const { request, response, page, closeCookieModals } = context;
+    const { request } = context;
     const { contentScraperSettings: settings, responseId } = request.userData;
 
     if (isActorStandby()) checkTimeoutAndCancelRequest(request, responseId);
@@ -245,10 +245,13 @@ export async function requestHandlerPlaywright(
     addTimeMeasureEvent(request.userData, 'playwright-request-start');
 
     // Media file requests are created with `skipNavigation` (see `createRequest`), so there is no page to process.
+    // `context.response`/`context.page` throw on access for such requests, so they must not be destructured above.
     if (request.skipNavigation) {
         await pushSkippedResult(context, SKIPPED_MEDIA_FILE_MESSAGE);
         return;
     }
+
+    const { response, page } = context;
 
     if (settings.dynamicContentWaitSecs > 0) {
         await waitForDynamicContent(context, settings.dynamicContentWaitSecs * 1000);
@@ -267,14 +270,6 @@ export async function requestHandlerPlaywright(
             } catch (err) {
                 log.debug(`Ghostery blocker failed: ${err instanceof Error ? err.message : String(err)}`);
             }
-        }
-
-        // Then fall back to closeCookieModals as additional cleanup
-        try {
-            await closeCookieModals();
-            log.debug('closeCookieModals executed as fallback');
-        } catch (err) {
-            log.debug(`closeCookieModals failed: ${err instanceof Error ? err.message : String(err)}`);
         }
 
         addTimeMeasureEvent(request.userData, 'playwright-remove-cookie');
@@ -301,7 +296,7 @@ export async function requestHandlerPlaywright(
 export async function requestHandlerCheerio(
     context: CheerioCrawlingContext<ContentCrawlerUserData>,
 ) {
-    const { $, request, response } = context;
+    const { request } = context;
     const { responseId } = request.userData;
 
     if (isActorStandby()) checkTimeoutAndCancelRequest(request, responseId);
@@ -310,17 +305,20 @@ export async function requestHandlerCheerio(
     addTimeMeasureEvent(request.userData, 'cheerio-request-start');
 
     // Media file requests are created with `skipNavigation` (see `createRequest`), so there is no response.
+    // `context.$`/`context.response` throw on access for such requests, so they must not be destructured above.
     if (request.skipNavigation) {
         await pushSkippedResult(context, SKIPPED_MEDIA_FILE_MESSAGE);
         return;
     }
 
-    const { statusCode } = response;
+    const { $, response } = context;
+    const statusCode = response.status;
+    const headers = Object.fromEntries(response.headers) as IncomingHttpHeaders;
 
-    const isValidResponse = await checkValidResponse($, response.headers['content-type'], statusCode, context);
+    const isValidResponse = await checkValidResponse($, headers['content-type'], statusCode, context);
     if (!isValidResponse) return;
 
-    await handleContent($, ContentCrawlerTypes.CHEERIO, statusCode, response.headers, context);
+    await handleContent($, ContentCrawlerTypes.CHEERIO, statusCode, headers, context);
 }
 
 export async function failedRequestHandler(request: Request, err: Error, crawlerType: ContentCrawlerTypes) {

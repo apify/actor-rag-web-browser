@@ -2,7 +2,7 @@ import type { IncomingHttpHeaders } from 'node:http';
 import { parse } from 'node:querystring';
 
 import { Actor } from 'apify';
-import type { ProxyConfiguration, RequestOptions } from 'crawlee';
+import type { IProxyConfiguration, RequestOptions } from 'crawlee';
 import { log } from 'crawlee';
 
 import ragWebBrowserInputSchema from '../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
@@ -144,7 +144,7 @@ export function randomId() {
  */
 export function createSearchRequest(
     userData: CreateSearchRequestUserData,
-    proxyConfiguration: ProxyConfiguration | undefined,
+    proxyConfiguration: IProxyConfiguration | undefined,
     startOffset = 0,
 ): RequestOptions<SearchCrawlerUserData> {
     // Initialize or update pagination fields
