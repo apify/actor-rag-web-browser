@@ -8,7 +8,7 @@ import { addTimeoutToAllResponses } from './responses.js';
 import { handleSearchNormalMode } from './search.js';
 import { createServer } from './server.js';
 import type { Input } from './types.js';
-import { isActorStandby } from './utils.js';
+import { isActorStandby, safeStringify } from './utils.js';
 
 await Actor.init();
 
@@ -31,10 +31,10 @@ if (isActorStandby()) {
         contentScraperSettings,
     } = await processStandbyInput(originalInput);
 
-    log.debug(`Loaded input: ${JSON.stringify(input)},
-        cheerioCrawlerOptions: ${JSON.stringify(searchCrawlerOptions)},
-        contentCrawlerOptions: ${JSON.stringify(contentCrawlerOptions)},
-        contentScraperSettings ${JSON.stringify(contentScraperSettings)}
+    log.debug(`Loaded input: ${safeStringify(input)},
+        cheerioCrawlerOptions: ${safeStringify(searchCrawlerOptions)},
+        contentCrawlerOptions: ${safeStringify(contentCrawlerOptions)},
+        contentScraperSettings ${safeStringify(contentScraperSettings)}
     `);
 
     const app = createServer();
@@ -60,10 +60,10 @@ if (isActorStandby()) {
 
     const { input, searchCrawlerOptions, contentCrawlerOptions, contentScraperSettings } = processedInput;
 
-    log.debug(`Loaded input: ${JSON.stringify(input)},
-        cheerioCrawlerOptions: ${JSON.stringify(searchCrawlerOptions)},
-        contentCrawlerOptions: ${JSON.stringify(contentCrawlerOptions)},
-        contentScraperSettings ${JSON.stringify(contentScraperSettings)}
+    log.debug(`Loaded input: ${safeStringify(input)},
+        cheerioCrawlerOptions: ${safeStringify(searchCrawlerOptions)},
+        contentCrawlerOptions: ${safeStringify(contentCrawlerOptions)},
+        contentScraperSettings ${safeStringify(contentScraperSettings)}
     `);
 
     let stats = { requestsFinished: 0, requestsFailed: 0 };

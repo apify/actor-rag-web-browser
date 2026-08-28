@@ -120,6 +120,22 @@ export function parseParameters(url: string): Partial<Input> {
     return parsedInput;
 }
 
+/**
+ * JSON.stringify that tolerates circular references (e.g. options objects holding
+ * live ProxyConfiguration/browserPool instances with internal timers) by replacing
+ * repeated object references with '[Circular]'.
+ */
+export function safeStringify(value: unknown): string {
+    const seen = new WeakSet();
+    return JSON.stringify(value, (_key, val) => {
+        if (typeof val === 'object' && val !== null) {
+            if (seen.has(val)) return '[Circular]';
+            seen.add(val);
+        }
+        return val;
+    });
+}
+
 export function randomId() {
     let result = '';
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
