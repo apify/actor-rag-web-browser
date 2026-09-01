@@ -21,3 +21,6 @@ export enum ContentCrawlerTypes {
 export const PLAYWRIGHT_REQUEST_TIMEOUT_NORMAL_MODE_SECS = 60;
 
 export const GOOGLE_STANDARD_RESULTS_PER_PAGE = 10;
+
+/** Reserved key-value store key holding an advisory message about the run. */
+export const TIP_KVS_KEY = 'TIP';
