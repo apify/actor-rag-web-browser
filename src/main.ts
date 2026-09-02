@@ -72,13 +72,15 @@ if (isActorStandby()) {
     if (tip) log.info(`Tip: ${tip.message}`);
 
     let stats = { requestsFinished: 0, requestsFailed: 0 };
+    let failure: Error | undefined;
     try {
         stats = await handleSearchNormalMode(input, searchCrawlerOptions, contentCrawlerOptions, contentScraperSettings);
     } catch (e) {
-        const error = e as Error;
-        await storeActorTip(tip);
-        await Actor.fail(error.message as string);
+        failure = e as Error;
     }
+
     await storeActorTip(tip);
+
+    if (failure) await Actor.fail(failure.message);
     await Actor.exit(`Finished! Scraped ${stats.requestsFinished} pages, ${stats.requestsFailed} failed.`);
 }
