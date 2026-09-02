@@ -1,4 +1,5 @@
 import { Actor } from 'apify';
+import { log } from 'crawlee';
 
 import { TIP_KVS_KEY } from './const.js';
 
@@ -136,9 +137,15 @@ export function findActorTip(input: { query?: string; url?: string }): ActorTip 
 /**
  * Stores the tip under the reserved key-value store key. Call it only once the crawlers have finished:
  * Crawlee purges the default storages while they start up, which wipes a record written before that.
+ *
+ * A tip is advisory, so a failure to store it never changes the outcome of the run.
  */
 export async function storeActorTip(tip: ActorTip | null): Promise<void> {
     if (!tip) return;
 
-    await Actor.setValue(TIP_KVS_KEY, tip);
+    try {
+        await Actor.setValue(TIP_KVS_KEY, tip);
+    } catch (err) {
+        log.warning(`Failed to store the tip: ${err instanceof Error ? err.message : String(err)}`);
+    }
 }
