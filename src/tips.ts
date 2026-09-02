@@ -1,5 +1,6 @@
 import { Actor } from 'apify';
 import { log } from 'crawlee';
+import { getDomainWithoutSuffix } from 'tldts';
 
 import { TIP_KVS_KEY } from './const.js';
 
@@ -18,6 +19,12 @@ type SiteRule = {
 
 function hostnameMatchesDomain(hostname: string, domain: string): boolean {
     const normalizedHostname = hostname.toLowerCase().replace(/\.$/, '');
+
+    // `example.*` matches the site under any of its country domains, such as `amazon.co.uk`.
+    if (domain.endsWith('.*')) {
+        return getDomainWithoutSuffix(normalizedHostname) === domain.slice(0, -2);
+    }
+
     return normalizedHostname === domain || normalizedHostname.endsWith(`.${domain}`);
 }
 
@@ -45,9 +52,8 @@ const SITE_RULES: SiteRule[] = [
         site: 'Google Maps',
         actorTitle: 'Google Maps Scraper',
         actorUrl: 'https://apify.com/compass/crawler-google-places',
-        domains: ['google.com'],
-        matchesUrl: (url) => hostnameMatchesDomain(url.hostname, 'maps.google.com')
-            || pathStartsWith(url.pathname, '/maps'),
+        domains: ['google.*'],
+        matchesUrl: (url) => url.hostname.startsWith('maps.') || pathStartsWith(url.pathname, '/maps'),
     },
     {
         site: 'zillow.com',
@@ -71,7 +77,7 @@ const SITE_RULES: SiteRule[] = [
         site: 'tripadvisor.com',
         actorTitle: 'Tripadvisor Scraper',
         actorUrl: 'https://apify.com/maxcopell/tripadvisor',
-        domains: ['tripadvisor.com'],
+        domains: ['tripadvisor.*'],
     },
     {
         site: 'youtube.com',
@@ -89,15 +95,19 @@ const SITE_RULES: SiteRule[] = [
         site: 'amazon.com',
         actorTitle: 'Amazon Crawler',
         actorUrl: 'https://apify.com/junglee/amazon-crawler',
-        domains: ['amazon.com'],
+        domains: ['amazon.*'],
     },
 ];
 
-const SURROUNDING_QUOTES = /^["']+|["']+$/g;
+/**
+ * Without this, whether a domain is recognized in a sentence depends on whether the punctuation after it
+ * happens to be a URL delimiter: `zillow.com.` and `zillow.com?` parse fine, `zillow.com,` does not.
+ */
+const SURROUNDING_PUNCTUATION = /^["'([]+|["')\],.;:!?]+$/g;
 const SEARCH_OPERATOR_PREFIX = /^[a-z]+:(?!\/\/)/i;
 
 function interpretTokenAsUrl(token: string): URL | null {
-    const candidate = token.replace(SURROUNDING_QUOTES, '').replace(SEARCH_OPERATOR_PREFIX, '');
+    const candidate = token.replace(SURROUNDING_PUNCTUATION, '').replace(SEARCH_OPERATOR_PREFIX, '');
     if (!candidate.includes('.')) return null;
 
     try {

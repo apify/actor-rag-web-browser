@@ -55,6 +55,35 @@ describe('findActorTip', () => {
         expect(findActorTip({ query })).toBeNull();
     });
 
+    it.each([
+        ['https://www.amazon.co.uk/dp/B08N5WRWNW', 'Amazon Crawler'],
+        ['https://www.amazon.de/dp/B08N5WRWNW', 'Amazon Crawler'],
+        ['https://www.amazon.com.mx/dp/B08N5WRWNW', 'Amazon Crawler'],
+        ['https://www.google.co.uk/maps/place/Prague', 'Google Maps Scraper'],
+        ['https://maps.google.co.uk/?q=prague', 'Google Maps Scraper'],
+        ['https://www.tripadvisor.co.uk/Hotel_Review-g274707', 'Tripadvisor Scraper'],
+    ])('recognizes the country domain %s', (query, actorTitle) => {
+        expect(findActorTip({ query })?.message).toContain(actorTitle);
+    });
+
+    it.each([
+        // The brand is only a subdomain of someone else's site.
+        'https://amazon.abc.com/dp/1',
+        'https://amazon.example.com/dp/1',
+        'https://notamazon.de/dp/1',
+        'https://google.com.evil.example/maps',
+        // A country domain does not turn plain Google Search into a Maps request.
+        'https://www.google.co.uk/search?q=prague',
+    ])('does not read %s as a country domain of a listed site', (query) => {
+        expect(findActorTip({ query })).toBeNull();
+    });
+
+    it('keeps sites that have a single global domain pinned to it', () => {
+        expect(findActorTip({ query: 'https://facebook.ru/apify' })).toBeNull();
+        expect(findActorTip({ query: 'https://instagram.de/apify' })).toBeNull();
+        expect(findActorTip({ query: 'https://booking.de/hotel/cz/prague.html' })).toBeNull();
+    });
+
     it('matches subdomains, keeping the more specific rule first', () => {
         expect(findActorTip({ query: 'https://m.facebook.com/groups/123' })?.message).toContain('Facebook Groups Scraper');
         expect(findActorTip({ query: 'https://m.facebook.com/apify' })?.message).toContain('Facebook Posts Scraper');
@@ -65,6 +94,24 @@ describe('findActorTip', () => {
         expect(findActorTip({ query: 'https://www.google.com/maps' })?.message).toContain('Google Maps Scraper');
         expect(findActorTip({ query: 'https://www.facebook.com/groupsomething' })?.message).toContain('Facebook Posts Scraper');
         expect(findActorTip({ query: 'https://www.google.com/mapsomething' })).toBeNull();
+    });
+
+    it.each([
+        'go to zillow.com for listings',
+        'go to zillow.com, and get the listings',
+        'go to zillow.com. thanks',
+        'go to zillow.com; now',
+        'go to zillow.com!',
+        'is zillow.com down?',
+        'see (zillow.com) for details',
+        'see [zillow.com] for details',
+        'go to zillow.com...',
+    ])('finds the domain whatever punctuation surrounds it: %s', (query) => {
+        expect(findActorTip({ query })?.message).toContain('Zillow Detail Scraper');
+    });
+
+    it('strips the punctuation before matching a path segment', () => {
+        expect(findActorTip({ query: 'google.com/maps, prague' })?.message).toContain('Google Maps Scraper');
     });
 
     it('ignores the case of the input', () => {

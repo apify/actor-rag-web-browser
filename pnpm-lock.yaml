@@ -47,6 +47,9 @@ importers:
       playwright:
         specifier: 1.55.1
         version: 1.55.1
+      tldts:
+        specifier: ^7.4.10
+        version: 7.4.10
       turndown:
         specifier: ^7.2.0
         version: 7.2.4
