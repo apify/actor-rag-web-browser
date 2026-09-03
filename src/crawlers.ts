@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { ImpitHttpClient } from '@crawlee/impit-client';
 import { MemoryStorage } from '@crawlee/memory-storage';
 import { PlaywrightBlocker } from '@ghostery/adblocker-playwright';
-import { Actor, RequestQueue } from 'apify';
+import { RequestQueue } from 'apify';
 import {
     type CheerioAPI,
     CheerioCrawler,
@@ -16,13 +16,13 @@ import {
     type RequestOptions,
 } from 'crawlee';
 
+import { chargeFetch } from './charging.js';
 import { ContentCrawlerTypes, GOOGLE_STANDARD_RESULTS_PER_PAGE } from './const.js';
 import { deduplicateResults, scrapeOrganicResults } from './google-search/google-extractors-urls.js';
-import { getMiniActor } from './mini-actors.js';
 import { failedRequestHandler, requestHandlerCheerio, requestHandlerPlaywright } from './request-handler.js';
 import { addEmptyResultToResponse, sendResponseError, sendResponseIfFinished } from './responses.js';
 import type { ContentCrawlerOptions, ContentCrawlerUserData, SearchCrawlerUserData } from './types.js';
-import { addTimeMeasureEvent, createRequest, createSearchRequest, isActorStandby, randomId } from './utils.js';
+import { addTimeMeasureEvent, createRequest, createSearchRequest } from './utils.js';
 
 const crawlers = new Map<string, CheerioCrawler | PlaywrightCrawler>();
 const client = new MemoryStorage({ persistStorage: false });
@@ -214,11 +214,6 @@ export async function createAndStartContentCrawler(
     return { key, crawler };
 }
 
-const URL_TO_MARKDOWN_PPE_EVENTS = {
-    RAW_HTTP: 'raw-http-result',
-    PLAYWRIGHT: 'playwright-result',
-};
-
 async function createPlaywrightContentCrawler(
     crawlerOptions: PlaywrightCrawlerOptions,
     key: string,
@@ -231,8 +226,11 @@ async function createPlaywrightContentCrawler(
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
         requestHandler: (async (context) => {
             const typedContext = context as unknown as PlaywrightCrawlingContext<ContentCrawlerUserData>;
-            await requestHandlerPlaywright(typedContext, blocker);
-            await maybeCharge(ContentCrawlerTypes.PLAYWRIGHT, typedContext.request.userData.actorRequestId);
+            const isExtracted = await requestHandlerPlaywright(typedContext, blocker);
+            // Charged before the response is sent, as a Standby charge needs the request to be in flight.
+            if (isExtracted) {
+                await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, typedContext.request.userData.actorRequestId);
+            }
             sendResponseIfFinished(typedContext.request.userData.responseId!);
         }),
         failedRequestHandler: async ({ request }, err) => {
@@ -254,8 +252,11 @@ async function createCheerioContentCrawler(
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
         requestHandler: (async (context) => {
             const typedContext = context as unknown as CheerioCrawlingContext<ContentCrawlerUserData>;
-            await requestHandlerCheerio(typedContext);
-            await maybeCharge(ContentCrawlerTypes.CHEERIO, typedContext.request.userData.actorRequestId);
+            const isExtracted = await requestHandlerCheerio(typedContext);
+            // Charged before the response is sent, as a Standby charge needs the request to be in flight.
+            if (isExtracted) {
+                await chargeFetch(ContentCrawlerTypes.CHEERIO, typedContext.request.userData.actorRequestId);
+            }
             sendResponseIfFinished(typedContext.request.userData.responseId!);
         }),
         failedRequestHandler: async ({ request }, err) => {
@@ -263,77 +264,6 @@ async function createCheerioContentCrawler(
             sendResponseIfFinished(request.userData.responseId!);
         },
     });
-}
-
-function getEventName(crawlerType: ContentCrawlerTypes): string {
-    return crawlerType === ContentCrawlerTypes.PLAYWRIGHT
-        ? URL_TO_MARKDOWN_PPE_EVENTS.PLAYWRIGHT
-        : URL_TO_MARKDOWN_PPE_EVENTS.RAW_HTTP;
-}
-
-/**
- * Normal (non-standby) single-run charging via the Actor SDK.
- */
-async function chargeNormal(eventName: string): Promise<void> {
-    await Actor.charge({ eventName });
-}
-
-/**
- * Multi-tenant standby charging: POSTs directly to the platform charge REST endpoint,
- * passing the calling request's ID so that the correct caller (not the Actor owner) is billed.
- */
-async function chargeStandby(eventName: string, actorRequestId: string): Promise<void> {
-    const { apiBaseUrl, actorRunId, token } = Actor.getEnv();
-    if (!apiBaseUrl || !actorRunId || !token) {
-        log.warning(`Skipping standby charge for ${eventName} event: missing apiBaseUrl/actorRunId/token from Actor.getEnv().`);
-        return;
-    }
-    const url = `${apiBaseUrl}v2/actor-runs/${actorRunId}/charge`;
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-            'Idempotency-Key': randomId(),
-        },
-        body: JSON.stringify({ eventName, count: 1, requestId: actorRequestId }),
-    });
-    if (!response.ok) {
-        const resText = await response.text();
-        throw new Error(`Charging failed: ${resText}`);
-    }
-}
-
-/**
- * Dispatches to the correct charging path (normal single-run vs. multi-tenant standby)
- * based on isActorStandby().
- */
-const CHARGE_TIMEOUT_MILLIS = 5_000;
-
-async function maybeCharge(crawlerType: ContentCrawlerTypes, actorRequestId?: string) {
-    if (getMiniActor().name !== 'url-to-markdown') {
-        return;
-    }
-    const eventName = getEventName(crawlerType);
-    try {
-        const chargePromise = isActorStandby()
-            ? (async () => {
-                if (!actorRequestId) {
-                    log.warning(`Skipping standby charge for ${eventName} event: missing actorRequestId (x-actor-request-id header was not provided).`);
-                    return;
-                }
-                await chargeStandby(eventName, actorRequestId);
-            })()
-            : chargeNormal(eventName);
-
-        const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error(`Charging timed out after ${CHARGE_TIMEOUT_MILLIS} ms`)), CHARGE_TIMEOUT_MILLIS);
-        });
-
-        await Promise.race([chargePromise, timeoutPromise]);
-    } catch (err) {
-        log.error(`Failed to charge for ${eventName} event: ${err instanceof Error ? err.message : String(err)}`);
-    }
 }
 
 /**

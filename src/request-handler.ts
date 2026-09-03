@@ -232,10 +232,16 @@ async function handleContent(
     }
 }
 
+/**
+ * Extracts the content of a target page with a browser.
+ *
+ * @returns Whether the content of the page was extracted. Pages that carry no extractable content are
+ * stored as skipped results instead, and are not charged for.
+ */
 export async function requestHandlerPlaywright(
     context: PlaywrightCrawlingContext<ContentCrawlerUserData>,
     blocker?: PlaywrightBlocker,
-) {
+): Promise<boolean> {
     const { request, response, page, closeCookieModals } = context;
     const { contentScraperSettings: settings, responseId } = request.userData;
 
@@ -247,7 +253,7 @@ export async function requestHandlerPlaywright(
     // Media file requests are created with `skipNavigation` (see `createRequest`), so there is no page to process.
     if (request.skipNavigation) {
         await pushSkippedResult(context, SKIPPED_MEDIA_FILE_MESSAGE);
-        return;
+        return false;
     }
 
     if (settings.dynamicContentWaitSecs > 0) {
@@ -293,14 +299,21 @@ export async function requestHandlerPlaywright(
     const statusCode = response?.status();
 
     const isValidResponse = await checkValidResponse($, headers?.['content-type'], statusCode, context);
-    if (!isValidResponse) return;
+    if (!isValidResponse) return false;
 
     await handleContent($, ContentCrawlerTypes.PLAYWRIGHT, statusCode, headers, context);
+    return true;
 }
 
+/**
+ * Extracts the content of a target page over plain HTTP.
+ *
+ * @returns Whether the content of the page was extracted. Pages that carry no extractable content are
+ * stored as skipped results instead, and are not charged for.
+ */
 export async function requestHandlerCheerio(
     context: CheerioCrawlingContext<ContentCrawlerUserData>,
-) {
+): Promise<boolean> {
     const { $, request, response } = context;
     const { responseId } = request.userData;
 
@@ -312,15 +325,16 @@ export async function requestHandlerCheerio(
     // Media file requests are created with `skipNavigation` (see `createRequest`), so there is no response.
     if (request.skipNavigation) {
         await pushSkippedResult(context, SKIPPED_MEDIA_FILE_MESSAGE);
-        return;
+        return false;
     }
 
     const { statusCode } = response;
 
     const isValidResponse = await checkValidResponse($, response.headers['content-type'], statusCode, context);
-    if (!isValidResponse) return;
+    if (!isValidResponse) return false;
 
     await handleContent($, ContentCrawlerTypes.CHEERIO, statusCode, response.headers, context);
+    return true;
 }
 
 export async function failedRequestHandler(request: Request, err: Error, crawlerType: ContentCrawlerTypes) {
