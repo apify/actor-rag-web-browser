@@ -38,7 +38,7 @@ export function createTestServer(): express.Express {
         sendHtml('with-image.html', res);
     });
 
-    // Has no media file extension, so it is navigated to, but its content cannot be extracted.
+    // Has no media file extension, so it is not skipped - the crawler rejects its content type instead.
     app.get('/binary', (_req, res) => {
         res.type('application/octet-stream').send(Buffer.from([0x00, 0x01, 0x02]));
     });

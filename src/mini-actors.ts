@@ -32,6 +32,18 @@ export interface MiniActor {
     route: Routes;
     helpRoute: string;
     chargeEvents: ChargeEvents;
+    /**
+     * Mirrors the Actor's `actorStandby.tenancy` setting on the platform, which decides who owns a
+     * Standby run and therefore who a charge without a request ID would land on. Update it when
+     * moving the Actor to multi-tenant Standby.
+     *
+     * Hardcoded on purpose. The platform exposes tenancy only through `GET /v2/acts/{actorId}` - not
+     * through an environment variable, not in `actor.json`, and not in apify-client's typed
+     * `ActorStandby`. Reading it at startup would cost an API call plus a cast into an untyped field,
+     * to decide a branch that the Standby controller makes unreachable anyway by setting
+     * `x-actor-request-id` on every request it proxies.
+     */
+    standbyTenancy: 'SINGLE_TENANT' | 'MULTI_TENANT';
 }
 
 const MINI_ACTORS: Record<string, MiniActor> = {
@@ -42,6 +54,7 @@ const MINI_ACTORS: Record<string, MiniActor> = {
         mcpServerName: 'mcp-server-rag-web-browser',
         route: Routes.SEARCH,
         helpRoute: '/search?query=hello+world',
+        standbyTenancy: 'SINGLE_TENANT',
         chargeEvents: {
             actorStart: 'actor-start',
             search: 'search',
@@ -58,6 +71,7 @@ const MINI_ACTORS: Record<string, MiniActor> = {
         mcpServerName: 'mcp-server-url-to-markdown',
         route: Routes.FETCH,
         helpRoute: '/fetch?url=https://example.com',
+        standbyTenancy: 'MULTI_TENANT',
         chargeEvents: {
             fetch: {
                 [ContentCrawlerTypes.CHEERIO]: 'raw-http-result',

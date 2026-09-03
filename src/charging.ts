@@ -8,8 +8,6 @@ import { isActorStandby, randomId } from './utils.js';
 /** How long to wait for a charge to go through before giving up on it. */
 const CHARGE_TIMEOUT_MILLIS = 5_000;
 
-let standbyRunOwnerWarningPrinted = false;
-
 /**
  * Whether the current run is billed per event.
  *
@@ -26,12 +24,7 @@ function isPayPerEvent(): boolean {
     }
 }
 
-/**
- * Charges the owner of the current run through the Actor SDK.
- *
- * In STANDBY mode this is only correct for single-tenant Actors, where the platform starts a separate
- * run per calling user; for multi-tenant Actors it would bill us instead of the caller.
- */
+/** Charges the owner of the current run through the Actor SDK. */
 async function chargeRunOwner(eventName: string): Promise<void> {
     await Actor.charge({ eventName });
 }
@@ -85,18 +78,19 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMillis: number): Promi
 async function charge(eventName: string | undefined, actorRequestId?: string): Promise<void> {
     if (!eventName || !isPayPerEvent()) return;
 
-    const canChargeStandbyCaller = isActorStandby() && actorRequestId !== undefined;
-    if (isActorStandby() && !canChargeStandbyCaller && !standbyRunOwnerWarningPrinted) {
-        log.warning('Charging the owner of this Standby run instead of the caller: the x-actor-request-id'
-            + ' header is missing, so the caller cannot be identified. That is correct only as long as the'
-            + ' Actor stays in the single-tenant Standby mode, where every caller gets a run of their own.');
-        standbyRunOwnerWarningPrinted = true;
+    // Every request the Standby controller proxies carries a request ID, so this only happens when the
+    // controller was bypassed. Falling back to the owner of the run is then right for single-tenant
+    // Standby, where the run belongs to the caller anyway - but for multi-tenant it would bill us, and
+    // those self-charges could exhaust the shared run's maxTotalChargeUsd and get it terminated.
+    if (isActorStandby() && !actorRequestId && getMiniActor().standbyTenancy === 'MULTI_TENANT') {
+        log.warning(`Skipping the standby charge for the \`${eventName}\` event: the x-actor-request-id header is missing, so the caller cannot be identified.`);
+        return;
     }
 
     try {
         await withTimeout(
-            canChargeStandbyCaller
-                ? chargeStandbyCaller(eventName, actorRequestId!)
+            isActorStandby() && actorRequestId
+                ? chargeStandbyCaller(eventName, actorRequestId)
                 : chargeRunOwner(eventName),
             CHARGE_TIMEOUT_MILLIS,
         );

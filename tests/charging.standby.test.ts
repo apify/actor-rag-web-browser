@@ -68,15 +68,17 @@ describe('Charging from standby requests', () => {
         expect(charging.chargeFetch).toHaveBeenCalledExactlyOnceWith(ContentCrawlerTypes.PLAYWRIGHT, 'request123');
     });
 
-    it('does not charge for a media file that is never downloaded', async () => {
+    // A media file is skipped without being downloaded, but still counts as a fetch - the same as in
+    // URL to Markdown, whose charging this shares. Deliberate, so keep it in sync with the pricing grid.
+    it('charges for a media file that is skipped without being downloaded', async () => {
         const response = await fetch(`${standbyUrl}/search?query=${baseUrl}/image.png`);
 
         expect(response.status).toBe(200);
         expect((await response.json())[0].crawl.httpStatusMessage).toBe('Skipped media file');
-        expect(charging.chargeFetch).not.toHaveBeenCalled();
+        expect(charging.chargeFetch).toHaveBeenCalledExactlyOnceWith(ContentCrawlerTypes.CHEERIO, undefined);
     });
 
-    it('does not charge for a page whose content cannot be extracted', async () => {
+    it('does not charge for a page that fails to load', async () => {
         const response = await fetch(`${standbyUrl}/search?query=${baseUrl}/binary`);
 
         expect(response.status).toBe(200);

@@ -301,8 +301,8 @@ compute units it consumes. The Apify platform usage is included in the prices be
 
 So a normal run of a search query for the default `maxResults` of 3 is charged one Actor start, one search
 and up to three fetches, while the same query sent to the Standby web server is charged one search and up to
-three fetches. Passing a URL as the `query` skips the search event, and a web page that cannot be extracted
-is not charged for.
+three fetches. Passing a URL as the `query` skips the search event, and a web page that fails to load is
+not charged for.
 
 Prices per event depend on your Apify plan and are listed on the
 [Actor's page in Apify Store](https://apify.com/apify/rag-web-browser).

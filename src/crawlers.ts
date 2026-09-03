@@ -226,11 +226,9 @@ async function createPlaywrightContentCrawler(
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
         requestHandler: (async (context) => {
             const typedContext = context as unknown as PlaywrightCrawlingContext<ContentCrawlerUserData>;
-            const isExtracted = await requestHandlerPlaywright(typedContext, blocker);
+            await requestHandlerPlaywright(typedContext, blocker);
             // Charged before the response is sent, as a Standby charge needs the request to be in flight.
-            if (isExtracted) {
-                await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, typedContext.request.userData.actorRequestId);
-            }
+            await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, typedContext.request.userData.actorRequestId);
             sendResponseIfFinished(typedContext.request.userData.responseId!);
         }),
         failedRequestHandler: async ({ request }, err) => {
@@ -252,11 +250,9 @@ async function createCheerioContentCrawler(
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
         requestHandler: (async (context) => {
             const typedContext = context as unknown as CheerioCrawlingContext<ContentCrawlerUserData>;
-            const isExtracted = await requestHandlerCheerio(typedContext);
+            await requestHandlerCheerio(typedContext);
             // Charged before the response is sent, as a Standby charge needs the request to be in flight.
-            if (isExtracted) {
-                await chargeFetch(ContentCrawlerTypes.CHEERIO, typedContext.request.userData.actorRequestId);
-            }
+            await chargeFetch(ContentCrawlerTypes.CHEERIO, typedContext.request.userData.actorRequestId);
             sendResponseIfFinished(typedContext.request.userData.responseId!);
         }),
         failedRequestHandler: async ({ request }, err) => {

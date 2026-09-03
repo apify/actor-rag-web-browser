@@ -168,18 +168,15 @@ describe('Pay-per-event charging', () => {
             expect(firstKey).not.toBe(secondKey);
         });
 
-        it('falls back to charging the run owner when the request ID is missing, warning once', async () => {
-            const warningSpy = vi.spyOn(log, 'warning').mockImplementation(() => undefined);
+        // Single-tenant Standby gives every caller a run of their own, so the owner of the run is the
+        // caller and charging them is still correct.
+        it('charges the run owner when the request ID is missing', async () => {
             const { chargeFetch } = await loadCharging();
 
             await chargeFetch(ContentCrawlerTypes.CHEERIO);
-            await chargeFetch(ContentCrawlerTypes.CHEERIO);
 
             expect(fetchMock).not.toHaveBeenCalled();
-            expect(mocks.charge).toHaveBeenCalledTimes(2);
-            expect(mocks.charge).toHaveBeenNthCalledWith(1, { eventName: 'fetch' });
-            expect(warningSpy).toHaveBeenCalledOnce();
-            expect(warningSpy.mock.calls[0][0]).toContain('x-actor-request-id');
+            expect(mocks.charge).toHaveBeenCalledExactlyOnceWith({ eventName: 'fetch' });
         });
     });
 
@@ -196,6 +193,21 @@ describe('Pay-per-event charging', () => {
 
             expect(mocks.charge).toHaveBeenNthCalledWith(1, { eventName: 'raw-http-result' });
             expect(mocks.charge).toHaveBeenNthCalledWith(2, { eventName: 'playwright-result' });
+        });
+
+        // Its Standby runs are shared between callers, so a charge that cannot be attributed to one of
+        // them would land on us and eat into the shared run's charge limit.
+        it('skips a standby charge that cannot be attributed to a caller', async () => {
+            mocks.getEnv.mockReturnValue(STANDBY_ENV);
+            const warningSpy = vi.spyOn(log, 'warning').mockImplementation(() => undefined);
+            const { chargeFetch } = await loadCharging();
+
+            await chargeFetch(ContentCrawlerTypes.CHEERIO);
+
+            expect(mocks.charge).not.toHaveBeenCalled();
+            expect(fetchMock).not.toHaveBeenCalled();
+            expect(warningSpy).toHaveBeenCalledOnce();
+            expect(warningSpy.mock.calls[0][0]).toContain('x-actor-request-id');
         });
 
         it('charges for neither the Actor start nor searches, which it does not price', async () => {
