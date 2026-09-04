@@ -1,15 +1,17 @@
 import type { Server } from 'node:http';
 
+import type { CheerioCrawlerOptions } from 'crawlee';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ContentCrawlerStatus, ContentCrawlerTypes } from '../src/const.js';
-import { createAndStartContentCrawler, createAndStartSearchCrawler } from '../src/crawlers.js';
+import { addSearchRequest, createAndStartContentCrawler, createAndStartSearchCrawler } from '../src/crawlers.js';
 import { processStandbyInput } from '../src/input.js';
 import { createServer } from '../src/server.js';
+import type { SearchCrawlerUserData } from '../src/types.js';
+import { createSearchRequest } from '../src/utils.js';
 import { startTestServer, stopTestServer } from './helpers/server.js';
 
 const charging = vi.hoisted(() => ({
-    chargeActorStart: vi.fn().mockResolvedValue(undefined),
     chargeSearch: vi.fn().mockResolvedValue(undefined),
     chargeFetch: vi.fn().mockResolvedValue(undefined),
 }));
@@ -17,6 +19,14 @@ const charging = vi.hoisted(() => ({
 vi.mock('../src/charging.js', () => charging);
 
 describe('Charging from standby requests', () => {
+    // The Actor's own search crawler routes through Apify Proxy, which cannot reach the test server.
+    const searchCrawlerOptions: CheerioCrawlerOptions = {
+        keepAlive: true,
+        maxRequestRetries: 0,
+        autoscaledPoolOptions: { desiredConcurrency: 1 },
+    };
+    let searchCrawler: Awaited<ReturnType<typeof createAndStartSearchCrawler>>['crawler'];
+    let contentCrawlerKey: string;
     let standbyServer: Server;
     const standbyServerPort = 3001;
     const standbyUrl = `http://localhost:${standbyServerPort}`;
@@ -28,14 +38,17 @@ describe('Charging from standby requests', () => {
     beforeAll(async () => {
         testServer = startTestServer(testServerPort);
 
-        const { searchCrawlerOptions, contentCrawlerOptions } = await processStandbyInput({ scrapingTool: 'raw-http' });
+        const { contentCrawlerOptions } = await processStandbyInput({ scrapingTool: 'raw-http' });
 
-        const app = createServer();
-        standbyServer = app.listen(standbyServerPort, async () => {
-            await Promise.all([
-                createAndStartSearchCrawler(searchCrawlerOptions),
-                ...contentCrawlerOptions.map(async (settings) => createAndStartContentCrawler(settings)),
-            ]);
+        const [search, ...contentCrawlers] = await Promise.all([
+            createAndStartSearchCrawler(searchCrawlerOptions),
+            ...contentCrawlerOptions.map(async (settings) => createAndStartContentCrawler(settings)),
+        ]);
+        searchCrawler = search.crawler;
+        contentCrawlerKey = contentCrawlers[0]!.key;
+
+        standbyServer = await new Promise<Server>((resolve) => {
+            const server = createServer().listen(standbyServerPort, () => resolve(server));
         });
     });
 
@@ -50,26 +63,20 @@ describe('Charging from standby requests', () => {
         charging.chargeSearch.mockResolvedValue(undefined);
     });
 
-    it('charges one fetch per extracted page, attributed to the calling request', async () => {
-        const response = await fetch(`${standbyUrl}/search?query=${baseUrl}/basic`, {
+    it.each([
+        ['raw-http', ContentCrawlerTypes.CHEERIO],
+        ['browser-playwright', ContentCrawlerTypes.PLAYWRIGHT],
+    ])('charges one fetch per page scraped with %s, attributed to the calling request', async (tool, crawlerType) => {
+        const response = await fetch(`${standbyUrl}/search?query=${baseUrl}/basic&scrapingTool=${tool}`, {
             headers: { 'x-actor-request-id': 'request123' },
         });
 
         expect(response.status).toBe(200);
-        expect(charging.chargeFetch).toHaveBeenCalledExactlyOnceWith(ContentCrawlerTypes.CHEERIO, 'request123');
+        expect(charging.chargeFetch).toHaveBeenCalledExactlyOnceWith(crawlerType, 'request123');
     });
 
-    it('reports the crawler that did the extraction', async () => {
-        const response = await fetch(`${standbyUrl}/search?query=${baseUrl}/basic&scrapingTool=browser-playwright`, {
-            headers: { 'x-actor-request-id': 'request123' },
-        });
-
-        expect(response.status).toBe(200);
-        expect(charging.chargeFetch).toHaveBeenCalledExactlyOnceWith(ContentCrawlerTypes.PLAYWRIGHT, 'request123');
-    });
-
-    // A media file is skipped without being downloaded, but still counts as a fetch - the same as in
-    // URL to Markdown, whose charging this shares. Deliberate, so keep it in sync with the pricing grid.
+    // Deliberate: a media file is skipped without being downloaded but still counts as a fetch, the same
+    // as in URL to Markdown, whose charging this shares. Keep it in sync with the pricing grid.
     it('charges for a media file that is skipped without being downloaded', async () => {
         const response = await fetch(`${standbyUrl}/search?query=${baseUrl}/image.png`);
 
@@ -110,21 +117,49 @@ describe('Charging from standby requests', () => {
         expect((await responsePromise).status).toBe(200);
     });
 
-    it('charges one search per query that is not a URL, attributed to the calling request', async () => {
-        // The charge is awaited before the search crawler starts, so never resolving it keeps this test
-        // from reaching the real Google Search.
-        charging.chargeSearch.mockReturnValue(new Promise<void>(() => { /* Never settles. */ }));
+    /**
+     * Submits a search request straight to the search crawler, pointed at a stand-in result page on the
+     * test server so that the crawler can be exercised without reaching Google.
+     */
+    async function submitSearch(path: string, userData: Partial<SearchCrawlerUserData> = {}) {
+        const request = createSearchRequest({
+            query: 'hello world',
+            maxResults: 1,
+            responseId: 'response123',
+            contentCrawlerKey,
+            contentScraperSettings: {
+                debugMode: false,
+                dynamicContentWaitSecs: 0,
+                maxHtmlCharsToProcess: 1e6,
+                outputFormats: ['markdown'],
+            },
+            actorRequestId: 'request123',
+            ...userData,
+        }, undefined);
+        request.url = `${baseUrl}${path}`;
+        await addSearchRequest(request, searchCrawlerOptions);
+    }
 
-        const abortController = new AbortController();
-        const responsePromise = fetch(`${standbyUrl}/search?query=hello+world`, {
-            headers: { 'x-actor-request-id': 'request123' },
-            signal: abortController.signal,
-        });
+    it('charges one search once Google has answered, attributed to the calling request', async () => {
+        await submitSearch('/serp');
 
-        await vi.waitFor(() => expect(charging.chargeSearch).toHaveBeenCalledExactlyOnceWith('request123'));
-        expect(charging.chargeFetch).not.toHaveBeenCalled();
+        // The stand-in result page links to a page of its own, so a fetch means the search is done with.
+        await vi.waitFor(() => expect(charging.chargeFetch).toHaveBeenCalled(), { timeout: 10_000 });
+        expect(charging.chargeSearch).toHaveBeenCalledExactlyOnceWith('request123');
+    });
 
-        abortController.abort();
-        await expect(responsePromise).rejects.toThrow();
+    it('does not charge for a search that Google never answers', async () => {
+        await submitSearch('/serp-error');
+
+        await vi.waitFor(() => expect(searchCrawler!.stats.state.requestsFailed).toBe(1), { timeout: 10_000 });
+        expect(charging.chargeSearch).not.toHaveBeenCalled();
+    });
+
+    // The flag is what a request carries after it has been charged for and then retried.
+    it('does not charge again for a query already marked as charged', async () => {
+        await submitSearch('/serp', { isSearchCharged: true });
+
+        await vi.waitFor(() => expect(charging.chargeFetch).toHaveBeenCalled(), { timeout: 10_000 });
+        expect(charging.chargeSearch).not.toHaveBeenCalled();
     });
 });

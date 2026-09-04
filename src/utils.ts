@@ -173,6 +173,7 @@ export function createSearchRequest(
             currentPage,
             totalPages,
             actorRequestId: userData.actorRequestId,
+            isSearchCharged: userData.isSearchCharged ?? false,
         },
     };
 }

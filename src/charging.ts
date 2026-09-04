@@ -5,15 +5,11 @@ import type { ContentCrawlerTypes } from './const.js';
 import { getMiniActor } from './mini-actors.js';
 import { isActorStandby, randomId } from './utils.js';
 
-/** How long to wait for a charge to go through before giving up on it. */
 const CHARGE_TIMEOUT_MILLIS = 5_000;
 
 /**
- * Whether the current run is billed per event.
- *
- * Charging is a no-op otherwise, which is what lets a single build run under both the old
- * compute-unit pricing and the new pay-per-event pricing while the 14-day price-change notice is
- * pending (see https://github.com/apify/actor-rag-web-browser/issues/146).
+ * Whether the current run is billed per event. Charging is a no-op otherwise, so one build works both
+ * before and after an Actor is switched over to pay-per-event pricing.
  */
 function isPayPerEvent(): boolean {
     try {
@@ -24,7 +20,6 @@ function isPayPerEvent(): boolean {
     }
 }
 
-/** Charges the owner of the current run through the Actor SDK. */
 async function chargeRunOwner(eventName: string): Promise<void> {
     await Actor.charge({ eventName });
 }
@@ -78,10 +73,9 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMillis: number): Promi
 async function charge(eventName: string | undefined, actorRequestId?: string): Promise<void> {
     if (!eventName || !isPayPerEvent()) return;
 
-    // Every request the Standby controller proxies carries a request ID, so this only happens when the
-    // controller was bypassed. Falling back to the owner of the run is then right for single-tenant
-    // Standby, where the run belongs to the caller anyway - but for multi-tenant it would bill us, and
-    // those self-charges could exhaust the shared run's maxTotalChargeUsd and get it terminated.
+    // Reached only when a request bypassed the Standby controller, which sets the header on everything
+    // it proxies. Charging the run owner instead is right for single-tenant Standby, where the run
+    // belongs to the caller, but in multi-tenant the run is ours and the charge would land on us.
     if (isActorStandby() && !actorRequestId && getMiniActor().standbyTenancy === 'MULTI_TENANT') {
         log.warning(`Skipping the standby charge for the \`${eventName}\` event: the x-actor-request-id header is missing, so the caller cannot be identified.`);
         return;
@@ -100,27 +94,17 @@ async function charge(eventName: string | undefined, actorRequestId?: string): P
 }
 
 /**
- * Charges for starting the Actor, once per run.
- *
- * A STANDBY run is started by the platform rather than by a user and then serves many requests, so
- * only NORMAL runs are charged. The guard lives here rather than at the call site so that moving the
- * call cannot silently change what users pay.
- */
-export async function chargeActorStart(): Promise<void> {
-    if (isActorStandby()) return;
-
-    await charge(getMiniActor().chargeEvents.actorStart);
-}
-
-/**
- * Charges for one Google Search query. Charged when the query is submitted, so that a query is paid
- * for once regardless of how many result pages and retries answering it takes.
+ * Charges for one Google Search query, once the search has actually returned results. Callers are
+ * responsible for charging a query only once, however many result pages it spans.
  */
 export async function chargeSearch(actorRequestId?: string): Promise<void> {
     await charge(getMiniActor().chargeEvents.search, actorRequestId);
 }
 
-/** Charges for one web page whose content the given crawler has extracted. */
+/**
+ * Charges for one web page handled by the given crawler. Pages that hold no extractable content, such
+ * as media files, are charged too; only a page that fails to load is free.
+ */
 export async function chargeFetch(crawlerType: ContentCrawlerTypes, actorRequestId?: string): Promise<void> {
     await charge(getMiniActor().chargeEvents.fetch?.[crawlerType], actorRequestId);
 }

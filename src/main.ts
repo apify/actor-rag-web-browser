@@ -1,7 +1,6 @@
 import { Actor } from 'apify';
 import { log } from 'crawlee';
 
-import { chargeActorStart } from './charging.js';
 import { createAndStartContentCrawler, createAndStartSearchCrawler } from './crawlers.js';
 import { processInput, processStandbyInput } from './input.js';
 import { getMiniActor } from './mini-actors.js';
@@ -54,8 +53,6 @@ if (isActorStandby()) {
     });
 } else {
     log.info('Actor is running in the NORMAL mode.');
-
-    await chargeActorStart();
 
     const processedInput = await processInput(originalInput).catch(async (e: Error) => {
         throw await Actor.fail(`Input processing failed: ${e.message}`);

@@ -16,7 +16,7 @@ import {
     type RequestOptions,
 } from 'crawlee';
 
-import { chargeFetch } from './charging.js';
+import { chargeFetch, chargeSearch } from './charging.js';
 import { ContentCrawlerTypes, GOOGLE_STANDARD_RESULTS_PER_PAGE } from './const.js';
 import { deduplicateResults, scrapeOrganicResults } from './google-search/google-extractors-urls.js';
 import { failedRequestHandler, requestHandlerCheerio, requestHandlerPlaywright } from './request-handler.js';
@@ -108,6 +108,15 @@ export async function createAndStartSearchCrawler(
 
             // Destructure userData for easier access (pagination fields are initialized in createSearchRequest)
             const { collectedResults, currentPage, totalPages, maxResults, actorRequestId } = request.userData;
+
+            // Charged here rather than when the query was submitted, so a search Google never answers is
+            // free - but still before any page is enqueued, or the response could beat the charge and
+            // invalidate the caller's request ID. The flag rides along with the request, so a retry of
+            // this handler cannot charge the query twice.
+            if (!request.userData.isSearchCharged) {
+                request.userData.isSearchCharged = true;
+                await chargeSearch(actorRequestId);
+            }
 
             // Merge with previously collected results and deduplicate
             const allResults = [...collectedResults, ...organicResults];
@@ -227,7 +236,6 @@ async function createPlaywrightContentCrawler(
         requestHandler: (async (context) => {
             const typedContext = context as unknown as PlaywrightCrawlingContext<ContentCrawlerUserData>;
             await requestHandlerPlaywright(typedContext, blocker);
-            // Charged before the response is sent, as a Standby charge needs the request to be in flight.
             await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, typedContext.request.userData.actorRequestId);
             sendResponseIfFinished(typedContext.request.userData.responseId!);
         }),
@@ -251,7 +259,6 @@ async function createCheerioContentCrawler(
         requestHandler: (async (context) => {
             const typedContext = context as unknown as CheerioCrawlingContext<ContentCrawlerUserData>;
             await requestHandlerCheerio(typedContext);
-            // Charged before the response is sent, as a Standby charge needs the request to be in flight.
             await chargeFetch(ContentCrawlerTypes.CHEERIO, typedContext.request.userData.actorRequestId);
             sendResponseIfFinished(typedContext.request.userData.responseId!);
         }),

@@ -112,13 +112,21 @@ export type SearchCrawlerUserData = {
     /** Max pages: ceil(maxResults/10) + 1 to handle pages with <10 results */
     totalPages: number;
     actorRequestId?: string;
+    /**
+     * Whether this query has already been charged for, so that neither a retry of the search request
+     * handler nor a further result page can charge it again.
+     */
+    isSearchCharged: boolean;
 };
 
 /**
  * Type for createSearchRequest function parameters.
- * Makes pagination fields optional while keeping required fields mandatory.
+ * Makes pagination and charging fields optional while keeping required fields mandatory.
  */
-export type CreateSearchRequestUserData = Optional<SearchCrawlerUserData, 'timeMeasures' | 'collectedResults' | 'currentPage' | 'totalPages'>;
+export type CreateSearchRequestUserData = Optional<
+    SearchCrawlerUserData,
+    'timeMeasures' | 'collectedResults' | 'currentPage' | 'totalPages' | 'isSearchCharged'
+>;
 
 export type ContentCrawlerUserData = {
     query: string;

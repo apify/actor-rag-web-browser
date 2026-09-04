@@ -291,18 +291,18 @@ Please note that these results are only indicative and may vary based on the sea
 ## 💰 Pricing
 
 The RAG Web Browser is priced per event, so you pay a fixed price for the work it does rather than for the
-compute units it consumes. The Apify platform usage is included in the prices below.
+compute units it consumes. The Apify platform usage is included in the event prices.
 
 | Event | What it covers | When it is charged |
 |---|---|---|
-| **Search** | One Google Search query, including all the result pages needed to collect `maxResults` results. | Once per request whose `query` is a search term. |
-| **Fetch** | Extracting the content of one web page, with either scraping tool. | Once per extracted web page. |
-| **Actor start** | Starting up the Actor for a single run. | Once per normal Actor run. Standby requests are not charged for it. |
+| **Search** | One Google Search query, including all the result pages needed to collect `maxResults` results. | Once per query that Google answers. A search that fails is not charged. |
+| **Fetch** | Retrieving one web page and converting it, with either scraping tool. | Once per web page, including pages that turn out to hold no text to extract. |
+| **Actor start** | Starting up the Actor for a single run. | On every normal Actor run, charged by the platform itself, once per GB of the run's memory. Standby requests are not charged for it. |
 
-So a normal run of a search query for the default `maxResults` of 3 is charged one Actor start, one search
-and up to three fetches, while the same query sent to the Standby web server is charged one search and up to
-three fetches. Passing a URL as the `query` skips the search event, and a web page that fails to load is
-not charged for.
+So a normal run of a search query for the default `maxResults` of 3 is charged for the Actor start, one
+search and up to three fetches, while the same query sent to the Standby web server is charged one search
+and up to three fetches. Passing a URL as the `query` skips the search event, and a web page that fails to
+load is not charged for.
 
 Prices per event depend on your Apify plan and are listed on the
 [Actor's page in Apify Store](https://apify.com/apify/rag-web-browser).

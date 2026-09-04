@@ -2,7 +2,6 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { type CheerioCrawlerOptions, log } from 'crawlee';
 
-import { chargeSearch } from './charging.js';
 import { PLAYWRIGHT_REQUEST_TIMEOUT_NORMAL_MODE_SECS } from './const.js';
 import { addContentCrawlRequest, addSearchRequest, createAndStartContentCrawler, createAndStartSearchCrawler } from './crawlers.js';
 import { UserInputError } from './errors.js';
@@ -126,9 +125,6 @@ async function runSearchProcess(params: Partial<Input>, actorRequestId?: string)
         }
         await addContentCrawlRequest(req, responseId, contentCrawlerKey);
     } else {
-        // Charged before the response can possibly be sent, because a Standby charge is attributed to
-        // the caller through their request's ID, which the platform only accepts while it is in flight.
-        await chargeSearch(actorRequestId);
         await createAndStartSearchCrawler(searchCrawlerOptions);
         // If input is a search query, run the search crawler first
         await addSearchRequest(req, searchCrawlerOptions);
@@ -209,7 +205,6 @@ export async function handleSearchNormalMode(
         }
         await addContentCrawlRequest(req, '', contentCrawlerKey);
     } else {
-        await chargeSearch();
         const { crawler: searchCrawler } = await createAndStartSearchCrawler(searchCrawlerOptions, false);
         await addSearchRequest(req, searchCrawlerOptions);
         addTimeMeasureEvent(req.userData!, 'before-cheerio-run', startedTime);

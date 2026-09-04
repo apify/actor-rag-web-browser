@@ -7,19 +7,19 @@ import { ContentCrawlerTypes, Routes } from './const.js';
 export type InputSchema = typeof ragWebBrowserInputSchema | typeof urlToMarkdownInputSchema;
 
 /**
- * Names of the pay-per-event events a mini-actor charges for. They must match the events configured
- * in the Actor's monetization settings in Apify Console exactly, otherwise the platform rejects the
- * charge. An event that is not listed here is simply never charged.
+ * Names of the pay-per-event events a mini-actor charges for. They must match the events configured in
+ * the Actor's monetization settings in Apify Console exactly, or the platform rejects the charge. An
+ * event that is not listed here is never charged.
+ *
+ * Starting the Actor is deliberately absent: that is the platform's own `apify-actor-start`, which it
+ * charges by itself and which an Actor must not charge for.
  */
 export interface ChargeEvents {
-    /** Charged once per run, in NORMAL mode only - a STANDBY run serves many users' requests. */
-    actorStart?: string;
-    /** Charged once per search query, in both modes, no matter how many result pages it takes. */
+    /** Charged once per search query, in both modes, however many result pages it takes. */
     search?: string;
     /**
-     * Charged once per extracted page, in both modes. Keyed by the crawler that did the extraction so
-     * that browser rendering can be priced above plain HTTP; RAG Web Browser deliberately prices both
-     * the same for now (see https://github.com/apify/actor-rag-web-browser/issues/146).
+     * Charged once per fetched page, in both modes. Keyed by the crawler that handled it so that
+     * browser rendering can be priced above plain HTTP - RAG Web Browser prices both the same.
      */
     fetch?: Record<ContentCrawlerTypes, string>;
 }
@@ -34,14 +34,11 @@ export interface MiniActor {
     chargeEvents: ChargeEvents;
     /**
      * Mirrors the Actor's `actorStandby.tenancy` setting on the platform, which decides who owns a
-     * Standby run and therefore who a charge without a request ID would land on. Update it when
-     * moving the Actor to multi-tenant Standby.
+     * Standby run and so who a charge without a request ID lands on. Update it when moving the Actor
+     * to multi-tenant Standby.
      *
-     * Hardcoded on purpose. The platform exposes tenancy only through `GET /v2/acts/{actorId}` - not
-     * through an environment variable, not in `actor.json`, and not in apify-client's typed
-     * `ActorStandby`. Reading it at startup would cost an API call plus a cast into an untyped field,
-     * to decide a branch that the Standby controller makes unreachable anyway by setting
-     * `x-actor-request-id` on every request it proxies.
+     * Hardcoded because the platform exposes tenancy only through `GET /v2/acts/{actorId}` - not as an
+     * environment variable, not in `actor.json`, and not in apify-client's typed `ActorStandby`.
      */
     standbyTenancy: 'SINGLE_TENANT' | 'MULTI_TENANT';
 }
@@ -56,7 +53,6 @@ const MINI_ACTORS: Record<string, MiniActor> = {
         helpRoute: '/search?query=hello+world',
         standbyTenancy: 'SINGLE_TENANT',
         chargeEvents: {
-            actorStart: 'actor-start',
             search: 'search',
             fetch: {
                 [ContentCrawlerTypes.CHEERIO]: 'fetch',
