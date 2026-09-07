@@ -43,16 +43,15 @@ describe('Pay-per-event charging', () => {
         vi.unstubAllGlobals();
     });
 
-    // The Actor has to keep running unchanged until the pricing model is switched over.
-    it('charges for nothing while the Actor is not on pay-per-event pricing', async () => {
+    // A build ships before the pricing model is switched over. The SDK ignores a charge off
+    // pay-per-event by itself, but the Standby endpoint answers 400, so that call has to be skipped.
+    it('does not call the standby charge endpoint off pay-per-event pricing', async () => {
         mocks.getPricingInfo.mockReturnValue({ isPayPerEvent: false });
-
-        await chargeSearch(CONTEXT);
-        await chargeFetch(ContentCrawlerTypes.CHEERIO, CONTEXT);
         mocks.getEnv.mockReturnValue(STANDBY_ENV);
-        await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, { ...CONTEXT, actorRequestId: 'request123' });
 
-        expect(mocks.charge).not.toHaveBeenCalled();
+        await chargeSearch({ ...CONTEXT, actorRequestId: 'request123' });
+        await chargeFetch(ContentCrawlerTypes.CHEERIO, { ...CONTEXT, actorRequestId: 'request123' });
+
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
@@ -62,10 +61,11 @@ describe('Pay-per-event charging', () => {
         mocks.getPricingInfo.mockImplementation(() => {
             throw new Error('ChargingManager is not initialized');
         });
+        mocks.getEnv.mockReturnValue(STANDBY_ENV);
 
-        await expect(chargeSearch(CONTEXT)).resolves.toBeUndefined();
-        await expect(chargeFetch(ContentCrawlerTypes.CHEERIO, CONTEXT)).resolves.toBeUndefined();
-        expect(mocks.charge).not.toHaveBeenCalled();
+        const context = { ...CONTEXT, actorRequestId: 'request123' };
+        await expect(chargeFetch(ContentCrawlerTypes.CHEERIO, context)).resolves.toBeUndefined();
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 
     describe('in normal mode', () => {

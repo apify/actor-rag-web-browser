@@ -19,7 +19,8 @@ export interface ChargeEvents {
     search?: string;
     /**
      * Charged once per fetched page, in both modes. Keyed by the crawler that handled it so that
-     * browser rendering can be priced above plain HTTP - RAG Web Browser prices both the same.
+     * browser rendering can be priced above plain HTTP, which is how URL to Markdown prices it. RAG
+     * Web Browser deliberately charges the same for both at launch and can be split later.
      */
     fetch?: Record<ContentCrawlerTypes, string>;
 }
