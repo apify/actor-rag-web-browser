@@ -130,6 +130,11 @@ export type CreateSearchRequestUserData = Optional<
 
 export type ContentCrawlerUserData = {
     query: string;
+    /**
+     * Whether this page has already been charged for, so that a retry of the content request handler
+     * cannot charge it again.
+     */
+    isFetchCharged?: boolean;
     responseId: string;
     timeMeasures: TimeMeasure[];
     searchResult?: OrganicResult;

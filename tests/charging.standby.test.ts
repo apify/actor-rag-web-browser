@@ -90,6 +90,17 @@ describe('Charging from standby requests', () => {
         expect(charging.chargeFetch).toHaveBeenCalledOnce();
     });
 
+    // Standing in for the real case, where Crawlee's handler timeout fires while the charge is in
+    // flight: the page has been paid for, and then the handler is retried anyway.
+    it('does not charge again when the handler is retried after the charge went through', async () => {
+        charging.chargeFetch.mockRejectedValueOnce(new Error('handler died after charging'));
+
+        const response = await fetch(`${standbyUrl}/search?query=${baseUrl}/basic`);
+
+        expect(response.status).toBe(200);
+        expect(charging.chargeFetch).toHaveBeenCalledOnce();
+    });
+
     it('does not charge for a page that fails to load', async () => {
         const response = await fetch(`${standbyUrl}/search?query=${baseUrl}/binary`);
 

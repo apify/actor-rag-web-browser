@@ -13,6 +13,7 @@ import {
     PlaywrightCrawler,
     type PlaywrightCrawlerOptions,
     type PlaywrightCrawlingContext,
+    type Request,
     type RequestOptions,
 } from 'crawlee';
 
@@ -223,6 +224,20 @@ export async function createAndStartContentCrawler(
     return { key, crawler };
 }
 
+/**
+ * Charges for a page once. Crawlee retries a request handler that fails after its charge went through,
+ * and the flag rides along with the request, so the retry cannot charge the same page again.
+ */
+async function chargeFetchOnce(request: Request<ContentCrawlerUserData>, crawlerType: ContentCrawlerTypes) {
+    if (request.userData.isFetchCharged) return;
+
+    request.userData.isFetchCharged = true;
+    await chargeFetch(crawlerType, {
+        actorRequestId: request.userData.actorRequestId,
+        idempotencyKey: request.uniqueKey,
+    });
+}
+
 async function createPlaywrightContentCrawler(
     crawlerOptions: PlaywrightCrawlerOptions,
     key: string,
@@ -236,10 +251,7 @@ async function createPlaywrightContentCrawler(
         requestHandler: (async (context) => {
             const typedContext = context as unknown as PlaywrightCrawlingContext<ContentCrawlerUserData>;
             await requestHandlerPlaywright(typedContext, blocker);
-            await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, {
-                actorRequestId: typedContext.request.userData.actorRequestId,
-                idempotencyKey: typedContext.request.uniqueKey,
-            });
+            await chargeFetchOnce(typedContext.request, ContentCrawlerTypes.PLAYWRIGHT);
             sendResponseIfFinished(typedContext.request.userData.responseId!);
         }),
         failedRequestHandler: async ({ request }, err) => {
@@ -262,10 +274,7 @@ async function createCheerioContentCrawler(
         requestHandler: (async (context) => {
             const typedContext = context as unknown as CheerioCrawlingContext<ContentCrawlerUserData>;
             await requestHandlerCheerio(typedContext);
-            await chargeFetch(ContentCrawlerTypes.CHEERIO, {
-                actorRequestId: typedContext.request.userData.actorRequestId,
-                idempotencyKey: typedContext.request.uniqueKey,
-            });
+            await chargeFetchOnce(typedContext.request, ContentCrawlerTypes.CHEERIO);
             sendResponseIfFinished(typedContext.request.userData.responseId!);
         }),
         failedRequestHandler: async ({ request }, err) => {
