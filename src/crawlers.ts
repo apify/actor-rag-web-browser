@@ -115,7 +115,7 @@ export async function createAndStartSearchCrawler(
             // this handler cannot charge the query twice.
             if (!request.userData.isSearchCharged) {
                 request.userData.isSearchCharged = true;
-                await chargeSearch(actorRequestId);
+                await chargeSearch({ actorRequestId, idempotencyKey: request.uniqueKey });
             }
 
             // Merge with previously collected results and deduplicate
@@ -236,7 +236,10 @@ async function createPlaywrightContentCrawler(
         requestHandler: (async (context) => {
             const typedContext = context as unknown as PlaywrightCrawlingContext<ContentCrawlerUserData>;
             await requestHandlerPlaywright(typedContext, blocker);
-            await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, typedContext.request.userData.actorRequestId);
+            await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, {
+                actorRequestId: typedContext.request.userData.actorRequestId,
+                idempotencyKey: typedContext.request.uniqueKey,
+            });
             sendResponseIfFinished(typedContext.request.userData.responseId!);
         }),
         failedRequestHandler: async ({ request }, err) => {
@@ -259,7 +262,10 @@ async function createCheerioContentCrawler(
         requestHandler: (async (context) => {
             const typedContext = context as unknown as CheerioCrawlingContext<ContentCrawlerUserData>;
             await requestHandlerCheerio(typedContext);
-            await chargeFetch(ContentCrawlerTypes.CHEERIO, typedContext.request.userData.actorRequestId);
+            await chargeFetch(ContentCrawlerTypes.CHEERIO, {
+                actorRequestId: typedContext.request.userData.actorRequestId,
+                idempotencyKey: typedContext.request.uniqueKey,
+            });
             sendResponseIfFinished(typedContext.request.userData.responseId!);
         }),
         failedRequestHandler: async ({ request }, err) => {

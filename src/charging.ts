@@ -3,9 +3,20 @@ import { log } from 'crawlee';
 
 import type { ContentCrawlerTypes } from './const.js';
 import { getMiniActor } from './mini-actors.js';
-import { isActorStandby, randomId } from './utils.js';
+import { isActorStandby } from './utils.js';
 
 const CHARGE_TIMEOUT_MILLIS = 5_000;
+
+export interface ChargeContext {
+    /** ID of the live Standby request whose caller is to be billed, when there is one. */
+    actorRequestId?: string;
+    /**
+     * Identifies the charge to the platform, which ignores a key it has already seen. Crawlee retries a
+     * request handler that fails after its charge went through, so this has to identify the request
+     * being charged for rather than the attempt - `Request.uniqueKey` does exactly that.
+     */
+    idempotencyKey: string;
+}
 
 /**
  * Whether the current run is billed per event. Charging is a no-op otherwise, so one build works both
@@ -31,7 +42,7 @@ async function chargeRunOwner(eventName: string): Promise<void> {
  * The request ID is only valid while its HTTP request is in flight, so this must be awaited before
  * the response to that request is sent.
  */
-async function chargeStandbyCaller(eventName: string, actorRequestId: string): Promise<void> {
+async function chargeStandbyCaller(eventName: string, actorRequestId: string, idempotencyKey: string): Promise<void> {
     const { apiBaseUrl, actorRunId, token } = Actor.getEnv();
     if (!apiBaseUrl || !actorRunId || !token) {
         throw new Error('Missing apiBaseUrl/actorRunId/token in Actor.getEnv().');
@@ -39,10 +50,12 @@ async function chargeStandbyCaller(eventName: string, actorRequestId: string): P
 
     const response = await fetch(`${apiBaseUrl}v2/actor-runs/${actorRunId}/charge`, {
         method: 'POST',
+        // Without this the request outlives the timeout below, holding its connection open.
+        signal: AbortSignal.timeout(CHARGE_TIMEOUT_MILLIS),
         headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
-            'Idempotency-Key': randomId(),
+            'Idempotency-Key': idempotencyKey,
         },
         body: JSON.stringify({ eventName, count: 1, requestId: actorRequestId }),
     });
@@ -70,7 +83,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMillis: number): Promi
  * Charges a single pay-per-event event, unless the event is not priced or the Actor is not on
  * pay-per-event pricing. Never throws - a request is served even when we fail to charge for it.
  */
-async function charge(eventName: string | undefined, actorRequestId?: string): Promise<void> {
+async function charge(eventName: string | undefined, { actorRequestId, idempotencyKey }: ChargeContext): Promise<void> {
     if (!eventName || !isPayPerEvent()) return;
 
     // Reached only when a request bypassed the Standby controller, which sets the header on everything
@@ -84,7 +97,7 @@ async function charge(eventName: string | undefined, actorRequestId?: string): P
     try {
         await withTimeout(
             isActorStandby() && actorRequestId
-                ? chargeStandbyCaller(eventName, actorRequestId)
+                ? chargeStandbyCaller(eventName, actorRequestId, idempotencyKey)
                 : chargeRunOwner(eventName),
             CHARGE_TIMEOUT_MILLIS,
         );
@@ -97,14 +110,14 @@ async function charge(eventName: string | undefined, actorRequestId?: string): P
  * Charges for one Google Search query, once the search has actually returned results. Callers are
  * responsible for charging a query only once, however many result pages it spans.
  */
-export async function chargeSearch(actorRequestId?: string): Promise<void> {
-    await charge(getMiniActor().chargeEvents.search, actorRequestId);
+export async function chargeSearch(context: ChargeContext): Promise<void> {
+    await charge(getMiniActor().chargeEvents.search, context);
 }
 
 /**
  * Charges for one web page handled by the given crawler. Pages that hold no extractable content, such
  * as media files, are charged too; only a page that fails to load is free.
  */
-export async function chargeFetch(crawlerType: ContentCrawlerTypes, actorRequestId?: string): Promise<void> {
-    await charge(getMiniActor().chargeEvents.fetch?.[crawlerType], actorRequestId);
+export async function chargeFetch(crawlerType: ContentCrawlerTypes, context: ChargeContext): Promise<void> {
+    await charge(getMiniActor().chargeEvents.fetch?.[crawlerType], context);
 }

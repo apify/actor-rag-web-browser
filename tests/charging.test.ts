@@ -25,6 +25,8 @@ const TOKEN = 'token123';
 const NORMAL_ENV = { apiBaseUrl: API_BASE_URL, actorRunId: RUN_ID, token: TOKEN };
 const STANDBY_ENV = { ...NORMAL_ENV, metaOrigin: 'STANDBY' };
 
+const CONTEXT = { idempotencyKey: 'uniqueKey123' };
+
 describe('Pay-per-event charging', () => {
     let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -45,10 +47,10 @@ describe('Pay-per-event charging', () => {
     it('charges for nothing while the Actor is not on pay-per-event pricing', async () => {
         mocks.getPricingInfo.mockReturnValue({ isPayPerEvent: false });
 
-        await chargeSearch();
-        await chargeFetch(ContentCrawlerTypes.CHEERIO);
+        await chargeSearch(CONTEXT);
+        await chargeFetch(ContentCrawlerTypes.CHEERIO, CONTEXT);
         mocks.getEnv.mockReturnValue(STANDBY_ENV);
-        await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, 'request123');
+        await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, { ...CONTEXT, actorRequestId: 'request123' });
 
         expect(mocks.charge).not.toHaveBeenCalled();
         expect(fetchMock).not.toHaveBeenCalled();
@@ -61,22 +63,22 @@ describe('Pay-per-event charging', () => {
             throw new Error('ChargingManager is not initialized');
         });
 
-        await expect(chargeSearch()).resolves.toBeUndefined();
-        await expect(chargeFetch(ContentCrawlerTypes.CHEERIO)).resolves.toBeUndefined();
+        await expect(chargeSearch(CONTEXT)).resolves.toBeUndefined();
+        await expect(chargeFetch(ContentCrawlerTypes.CHEERIO, CONTEXT)).resolves.toBeUndefined();
         expect(mocks.charge).not.toHaveBeenCalled();
     });
 
     describe('in normal mode', () => {
         it('charges the owner of the run through the SDK', async () => {
-            await chargeSearch();
+            await chargeSearch(CONTEXT);
 
             expect(mocks.charge).toHaveBeenCalledExactlyOnceWith({ eventName: 'search' });
             expect(fetchMock).not.toHaveBeenCalled();
         });
 
         it('charges the same fetch event whichever crawler did the work', async () => {
-            await chargeFetch(ContentCrawlerTypes.CHEERIO);
-            await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT);
+            await chargeFetch(ContentCrawlerTypes.CHEERIO, CONTEXT);
+            await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, CONTEXT);
 
             expect(mocks.charge).toHaveBeenNthCalledWith(1, { eventName: 'fetch' });
             expect(mocks.charge).toHaveBeenNthCalledWith(2, { eventName: 'fetch' });
@@ -89,7 +91,7 @@ describe('Pay-per-event charging', () => {
         });
 
         it('bills the caller of the request rather than the owner of the run', async () => {
-            await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, 'request123');
+            await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, { ...CONTEXT, actorRequestId: 'request123' });
 
             expect(mocks.charge).not.toHaveBeenCalled();
             expect(fetchMock).toHaveBeenCalledOnce();
@@ -98,21 +100,23 @@ describe('Pay-per-event charging', () => {
             expect(url).toBe(`${API_BASE_URL}v2/actor-runs/${RUN_ID}/charge`);
             expect(options.method).toBe('POST');
             expect(options.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+            expect(options.signal).toBeInstanceOf(AbortSignal);
             expect(JSON.parse(options.body)).toEqual({ eventName: 'fetch', count: 1, requestId: 'request123' });
         });
 
-        // A repeated key makes the platform drop the second charge as a duplicate.
-        it('gives every charge its own idempotency key', async () => {
-            await chargeFetch(ContentCrawlerTypes.CHEERIO, 'request123');
-            await chargeFetch(ContentCrawlerTypes.CHEERIO, 'request123');
+        // Retrying a request that was already charged for must not bill the caller twice, which the
+        // platform can only tell from the key.
+        it('identifies the charge by the request it belongs to', async () => {
+            await chargeFetch(ContentCrawlerTypes.CHEERIO, { actorRequestId: 'request123', idempotencyKey: 'uniqueKey123' });
+            await chargeFetch(ContentCrawlerTypes.CHEERIO, { actorRequestId: 'request123', idempotencyKey: 'uniqueKey123' });
 
-            const [firstKey, secondKey] = fetchMock.mock.calls.map((call) => call[1].headers['Idempotency-Key']);
-            expect(firstKey).not.toBe(secondKey);
+            const keys = fetchMock.mock.calls.map((call) => call[1].headers['Idempotency-Key']);
+            expect(keys).toEqual(['uniqueKey123', 'uniqueKey123']);
         });
 
         // Single-tenant Standby gives every caller a run of their own, so its owner is the caller.
         it('falls back to the owner of the run when the caller cannot be identified', async () => {
-            await chargeFetch(ContentCrawlerTypes.CHEERIO);
+            await chargeFetch(ContentCrawlerTypes.CHEERIO, CONTEXT);
 
             expect(fetchMock).not.toHaveBeenCalled();
             expect(mocks.charge).toHaveBeenCalledExactlyOnceWith({ eventName: 'fetch' });
@@ -125,15 +129,15 @@ describe('Pay-per-event charging', () => {
         });
 
         it('prices browser rendering separately from plain HTTP', async () => {
-            await chargeFetch(ContentCrawlerTypes.CHEERIO);
-            await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT);
+            await chargeFetch(ContentCrawlerTypes.CHEERIO, CONTEXT);
+            await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, CONTEXT);
 
             expect(mocks.charge).toHaveBeenNthCalledWith(1, { eventName: 'raw-http-result' });
             expect(mocks.charge).toHaveBeenNthCalledWith(2, { eventName: 'playwright-result' });
         });
 
         it('charges for nothing it does not price, such as a search', async () => {
-            await chargeSearch();
+            await chargeSearch(CONTEXT);
 
             expect(mocks.charge).not.toHaveBeenCalled();
             expect(fetchMock).not.toHaveBeenCalled();
@@ -145,7 +149,7 @@ describe('Pay-per-event charging', () => {
             mocks.getEnv.mockReturnValue(STANDBY_ENV);
             const warningSpy = vi.spyOn(log, 'warning').mockImplementation(() => undefined);
 
-            await chargeFetch(ContentCrawlerTypes.CHEERIO);
+            await chargeFetch(ContentCrawlerTypes.CHEERIO, CONTEXT);
 
             expect(mocks.charge).not.toHaveBeenCalled();
             expect(fetchMock).not.toHaveBeenCalled();
@@ -160,7 +164,7 @@ describe('Pay-per-event charging', () => {
             fetchMock.mockResolvedValue({ ok: false, text: async () => 'requestId is invalid or has expired' });
             const errorSpy = vi.spyOn(log, 'error').mockImplementation(() => undefined);
 
-            await expect(chargeFetch(ContentCrawlerTypes.CHEERIO, 'request123')).resolves.toBeUndefined();
+            await expect(chargeFetch(ContentCrawlerTypes.CHEERIO, { ...CONTEXT, actorRequestId: 'request123' })).resolves.toBeUndefined();
 
             expect(errorSpy).toHaveBeenCalledOnce();
             expect(errorSpy.mock.calls[0][0]).toContain('requestId is invalid or has expired');
@@ -173,7 +177,7 @@ describe('Pay-per-event charging', () => {
                 mocks.charge.mockReturnValue(new Promise(() => { /* Never settles. */ }));
                 const errorSpy = vi.spyOn(log, 'error').mockImplementation(() => undefined);
 
-                const chargePromise = chargeSearch();
+                const chargePromise = chargeSearch(CONTEXT);
                 await vi.advanceTimersByTimeAsync(5_000);
 
                 await expect(chargePromise).resolves.toBeUndefined();

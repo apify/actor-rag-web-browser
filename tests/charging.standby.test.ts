@@ -72,7 +72,12 @@ describe('Charging from standby requests', () => {
         });
 
         expect(response.status).toBe(200);
-        expect(charging.chargeFetch).toHaveBeenCalledExactlyOnceWith(crawlerType, 'request123');
+        // Keying the charge on the request being charged for is what keeps a retry from billing twice.
+        const [result] = await response.json();
+        expect(charging.chargeFetch).toHaveBeenCalledExactlyOnceWith(crawlerType, {
+            actorRequestId: 'request123',
+            idempotencyKey: result.crawl.uniqueKey,
+        });
     });
 
     // Deliberate: a media file is skipped without being downloaded but still counts as a fetch, the same
@@ -82,7 +87,7 @@ describe('Charging from standby requests', () => {
 
         expect(response.status).toBe(200);
         expect((await response.json())[0].crawl.httpStatusMessage).toBe('Skipped media file');
-        expect(charging.chargeFetch).toHaveBeenCalledExactlyOnceWith(ContentCrawlerTypes.CHEERIO, undefined);
+        expect(charging.chargeFetch).toHaveBeenCalledOnce();
     });
 
     it('does not charge for a page that fails to load', async () => {
@@ -145,7 +150,10 @@ describe('Charging from standby requests', () => {
 
         // The stand-in result page links to a page of its own, so a fetch means the search is done with.
         await vi.waitFor(() => expect(charging.chargeFetch).toHaveBeenCalled(), { timeout: 10_000 });
-        expect(charging.chargeSearch).toHaveBeenCalledExactlyOnceWith('request123');
+        expect(charging.chargeSearch).toHaveBeenCalledExactlyOnceWith({
+            actorRequestId: 'request123',
+            idempotencyKey: expect.any(String),
+        });
     });
 
     it('does not charge for a search that Google never answers', async () => {
