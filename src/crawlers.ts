@@ -21,8 +21,8 @@ import { chargeFetch, chargeSearch } from './charging.js';
 import { ContentCrawlerTypes, GOOGLE_STANDARD_RESULTS_PER_PAGE } from './const.js';
 import { deduplicateResults, scrapeOrganicResults } from './google-search/google-extractors-urls.js';
 import { failedRequestHandler, requestHandlerCheerio, requestHandlerPlaywright } from './request-handler.js';
-import { addEmptyResultToResponse, sendResponseError, sendResponseIfFinished } from './responses.js';
-import type { ContentCrawlerOptions, ContentCrawlerUserData, SearchCrawlerUserData } from './types.js';
+import { addEmptyResultToResponse, addResultToResponse, sendResponseError, sendResponseIfFinished } from './responses.js';
+import type { ContentCrawlerOptions, ContentCrawlerUserData, Output, SearchCrawlerUserData } from './types.js';
 import { addTimeMeasureEvent, createRequest, createSearchRequest } from './utils.js';
 
 const crawlers = new Map<string, CheerioCrawler | PlaywrightCrawler>();
@@ -110,12 +110,12 @@ export async function createAndStartSearchCrawler(
             // Destructure userData for easier access (pagination fields are initialized in createSearchRequest)
             const { collectedResults, currentPage, totalPages, maxResults, actorRequestId } = request.userData;
 
-            // Charged here rather than when the query was submitted, so a search Google never answers is
-            // free - but still before any page is enqueued, or the response could beat the charge and
-            // invalidate the caller's request ID. The flag rides along with the request, so a retry of
-            // this handler cannot charge the query twice.
-            if (!request.userData.isSearchCharged) {
-                request.userData.isSearchCharged = true;
+            // Charged for a page of results rather than for submitting the query, so a search Google
+            // refuses stays free - but before anything is enqueued, or the response could beat the charge
+            // and invalidate the caller's request ID. The flag rides along with the request, so a retry
+            // of this handler cannot charge the query twice.
+            if (organicResults.length > 0 && !request.userData.isSearchChargeAttempted) {
+                request.userData.isSearchChargeAttempted = true;
                 await chargeSearch({ actorRequestId, idempotencyKey: request.uniqueKey });
             }
 
@@ -225,17 +225,31 @@ export async function createAndStartContentCrawler(
 }
 
 /**
- * Charges for a page once. Crawlee retries a request handler that fails after its charge went through,
- * and the flag rides along with the request, so the retry cannot charge the same page again.
+ * Sends at most one charge per page: Crawlee retries a handler that fails after its charge went out, and
+ * that charge may already have been recorded.
  */
 async function chargeFetchOnce(request: Request<ContentCrawlerUserData>, crawlerType: ContentCrawlerTypes) {
-    if (request.userData.isFetchCharged) return;
+    if (request.userData.isFetchChargeAttempted) return;
 
-    request.userData.isFetchCharged = true;
+    request.userData.isFetchChargeAttempted = true;
     await chargeFetch(crawlerType, {
         actorRequestId: request.userData.actorRequestId,
         idempotencyKey: request.uniqueKey,
     });
+}
+
+/**
+ * Hands a finished page to the response it belongs to.
+ *
+ * Only called once the page has been charged for: a response completes as soon as none of its pages are
+ * pending any more, so registering a page earlier would let a sibling finishing first send the response
+ * while this page's charge is still in flight - and the platform refuses a charge whose request is gone.
+ */
+function completeContentRequest(request: Request<ContentCrawlerUserData>, result: Output) {
+    const { responseId } = request.userData;
+
+    addResultToResponse(responseId, request.uniqueKey, result);
+    sendResponseIfFinished(responseId);
 }
 
 async function createPlaywrightContentCrawler(
@@ -250,9 +264,9 @@ async function createPlaywrightContentCrawler(
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
         requestHandler: (async (context) => {
             const typedContext = context as unknown as PlaywrightCrawlingContext<ContentCrawlerUserData>;
-            await requestHandlerPlaywright(typedContext, blocker);
+            const result = await requestHandlerPlaywright(typedContext, blocker);
             await chargeFetchOnce(typedContext.request, ContentCrawlerTypes.PLAYWRIGHT);
-            sendResponseIfFinished(typedContext.request.userData.responseId!);
+            completeContentRequest(typedContext.request, result);
         }),
         failedRequestHandler: async ({ request }, err) => {
             await failedRequestHandler(request, err, ContentCrawlerTypes.PLAYWRIGHT);
@@ -273,9 +287,9 @@ async function createCheerioContentCrawler(
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
         requestHandler: (async (context) => {
             const typedContext = context as unknown as CheerioCrawlingContext<ContentCrawlerUserData>;
-            await requestHandlerCheerio(typedContext);
+            const result = await requestHandlerCheerio(typedContext);
             await chargeFetchOnce(typedContext.request, ContentCrawlerTypes.CHEERIO);
-            sendResponseIfFinished(typedContext.request.userData.responseId!);
+            completeContentRequest(typedContext.request, result);
         }),
         failedRequestHandler: async ({ request }, err) => {
             await failedRequestHandler(request, err, ContentCrawlerTypes.CHEERIO);

@@ -132,9 +132,8 @@ async function pushSkippedResult(
     context: ContentCrawlingContext,
     httpStatusMessage: string,
     httpStatusCode?: number,
-) {
+): Promise<Output> {
     const { request } = context;
-    const { responseId } = request.userData;
 
     const resultSkipped: Output = {
         crawl: {
@@ -151,24 +150,25 @@ async function pushSkippedResult(
     };
     log.info(`Adding result to the Apify dataset, url: ${request.url}`);
     await context.pushData(resultSkipped);
-    if (responseId) {
-        addResultToResponse(responseId, request.uniqueKey, resultSkipped);
-    }
+    return resultSkipped;
 }
 
-async function checkValidResponse(
+/**
+ * @returns The stored empty result when the response holds nothing we can parse, `undefined` when the
+ * page can be processed after all.
+ */
+async function skipUnparsableResponse(
     $: CheerioCrawlingContext['$'],
     contentType: string | undefined,
     statusCode: number | undefined,
     context: ContentCrawlingContext,
-) {
+): Promise<Output | undefined> {
     if (!$ || !isValidContentType(contentType)) {
         log.info(`Skipping URL ${context.request.loadedUrl} as it could not be parsed.`, { contentType });
-        await pushSkippedResult(context, "Couldn't parse the content", statusCode);
-        return false;
+        return pushSkippedResult(context, "Couldn't parse the content", statusCode);
     }
 
-    return true;
+    return undefined;
 }
 
 async function handleContent(
@@ -177,9 +177,9 @@ async function handleContent(
     statusCode: number | undefined,
     headers: IncomingHttpHeaders | undefined,
     context: PlaywrightCrawlingContext<ContentCrawlerUserData> | CheerioCrawlingContext<ContentCrawlerUserData>,
-) {
+): Promise<Output> {
     const { request } = context;
-    const { responseId, contentScraperSettings: settings } = request.userData;
+    const { contentScraperSettings: settings } = request.userData;
 
     const $html = $('html');
     const html = $html.html()!;
@@ -225,17 +225,17 @@ async function handleContent(
     }
     log.info(`Adding result to the Apify dataset, url: ${request.url}`);
     await context.pushData(result);
-
-    // Get responseId from the request.userData, which corresponds to the original search request
-    if (responseId) {
-        addResultToResponse(responseId, request.uniqueKey, result);
-    }
+    return result;
 }
 
+/**
+ * @returns The result for this page. The caller registers it with the response, once the page has been
+ * charged for.
+ */
 export async function requestHandlerPlaywright(
     context: PlaywrightCrawlingContext<ContentCrawlerUserData>,
     blocker?: PlaywrightBlocker,
-) {
+): Promise<Output> {
     const { request, response, page, closeCookieModals } = context;
     const { contentScraperSettings: settings, responseId } = request.userData;
 
@@ -246,8 +246,7 @@ export async function requestHandlerPlaywright(
 
     // Media file requests are created with `skipNavigation` (see `createRequest`), so there is no page to process.
     if (request.skipNavigation) {
-        await pushSkippedResult(context, SKIPPED_MEDIA_FILE_MESSAGE);
-        return;
+        return pushSkippedResult(context, SKIPPED_MEDIA_FILE_MESSAGE);
     }
 
     if (settings.dynamicContentWaitSecs > 0) {
@@ -292,15 +291,16 @@ export async function requestHandlerPlaywright(
     const headers = getPlaywrightResponseHeaders(response);
     const statusCode = response?.status();
 
-    const isValidResponse = await checkValidResponse($, headers?.['content-type'], statusCode, context);
-    if (!isValidResponse) return;
+    const skipped = await skipUnparsableResponse($, headers?.['content-type'], statusCode, context);
+    if (skipped) return skipped;
 
-    await handleContent($, ContentCrawlerTypes.PLAYWRIGHT, statusCode, headers, context);
+    return handleContent($, ContentCrawlerTypes.PLAYWRIGHT, statusCode, headers, context);
 }
 
+/** @returns The result for this page, as in {@link requestHandlerPlaywright}. */
 export async function requestHandlerCheerio(
     context: CheerioCrawlingContext<ContentCrawlerUserData>,
-) {
+): Promise<Output> {
     const { $, request, response } = context;
     const { responseId } = request.userData;
 
@@ -311,16 +311,15 @@ export async function requestHandlerCheerio(
 
     // Media file requests are created with `skipNavigation` (see `createRequest`), so there is no response.
     if (request.skipNavigation) {
-        await pushSkippedResult(context, SKIPPED_MEDIA_FILE_MESSAGE);
-        return;
+        return pushSkippedResult(context, SKIPPED_MEDIA_FILE_MESSAGE);
     }
 
     const { statusCode } = response;
 
-    const isValidResponse = await checkValidResponse($, response.headers['content-type'], statusCode, context);
-    if (!isValidResponse) return;
+    const skipped = await skipUnparsableResponse($, response.headers['content-type'], statusCode, context);
+    if (skipped) return skipped;
 
-    await handleContent($, ContentCrawlerTypes.CHEERIO, statusCode, response.headers, context);
+    return handleContent($, ContentCrawlerTypes.CHEERIO, statusCode, response.headers, context);
 }
 
 export async function failedRequestHandler(request: Request, err: Error, crawlerType: ContentCrawlerTypes) {

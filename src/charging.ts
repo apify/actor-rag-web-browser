@@ -18,7 +18,10 @@ export interface ChargeContext {
     idempotencyKey: string;
 }
 
-/** Whether the current run is billed per event. */
+/**
+ * Whether the current run is billed per event. Charging is a no-op otherwise, so one build works both
+ * before and after an Actor is switched over to pay-per-event pricing.
+ */
 function isPayPerEvent(): boolean {
     try {
         return Actor.getChargingManager().getPricingInfo().isPayPerEvent;
@@ -37,20 +40,14 @@ async function chargeRunOwner(eventName: string): Promise<void> {
  * Charges the caller of a live STANDBY request by POSTing to the platform charge endpoint with the ID
  * of that request.
  *
- * This exists for multi-tenant Standby, where one run serves many callers and the request ID is the
- * only thing telling the platform which of them to bill. Single-tenant Standby takes the same path
- * whenever the header is there, and lands on the same account either way, because the caller owns the
- * run.
+ * This exists for multi-tenant Standby, where one run serves many callers and the request ID is the only
+ * thing telling the platform which of them to bill. Single-tenant takes the same path when the header is
+ * there, landing on the same account either way.
  *
- * The request ID is only valid while its HTTP request is in flight, so this must be awaited before
- * the response to that request is sent.
+ * The request ID is only valid while its HTTP request is in flight, so this must be awaited before the
+ * response to that request is sent.
  */
 async function chargeStandbyCaller(eventName: string, actorRequestId: string, idempotencyKey: string): Promise<void> {
-    // `Actor.charge` quietly ignores a charge off pay-per-event, but this endpoint answers `400
-    // cannot-charge-non-pay-per-event-actor`. Without this, a build shipped ahead of the pricing switch
-    // would log a charging error on every Standby request until the switch lands.
-    if (!isPayPerEvent()) return;
-
     const { apiBaseUrl, actorRunId, token } = Actor.getEnv();
     if (!apiBaseUrl || !actorRunId || !token) {
         throw new Error('Missing apiBaseUrl/actorRunId/token in Actor.getEnv().');
@@ -58,7 +55,7 @@ async function chargeStandbyCaller(eventName: string, actorRequestId: string, id
 
     const response = await fetch(`${apiBaseUrl}v2/actor-runs/${actorRunId}/charge`, {
         method: 'POST',
-        // Without this the request outlives the timeout below, holding its connection open.
+        // Without this the request outlives the deadline, holding its connection open.
         signal: AbortSignal.timeout(CHARGE_TIMEOUT_MILLIS),
         headers: {
             'Content-Type': 'application/json',
@@ -92,7 +89,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMillis: number): Promi
  * pay-per-event pricing. Never throws - a request is served even when we fail to charge for it.
  */
 async function charge(eventName: string | undefined, { actorRequestId, idempotencyKey }: ChargeContext): Promise<void> {
-    if (!eventName) return;
+    if (!eventName || !isPayPerEvent()) return;
 
     // Reached only when a request bypassed the Standby controller, which sets the header on everything
     // it proxies. Charging the run owner instead is right for single-tenant Standby, where the run

@@ -113,10 +113,11 @@ export type SearchCrawlerUserData = {
     totalPages: number;
     actorRequestId?: string;
     /**
-     * Whether this query has already been charged for, so that neither a retry of the search request
-     * handler nor a further result page can charge it again.
+     * Whether a charge for this query has already been sent, so that neither a retry of the search
+     * request handler nor a further result page sends another one. It records the attempt rather than a
+     * confirmed charge: a charge that times out may still have been recorded by the platform.
      */
-    isSearchCharged: boolean;
+    isSearchChargeAttempted: boolean;
 };
 
 /**
@@ -125,16 +126,13 @@ export type SearchCrawlerUserData = {
  */
 export type CreateSearchRequestUserData = Optional<
     SearchCrawlerUserData,
-    'timeMeasures' | 'collectedResults' | 'currentPage' | 'totalPages' | 'isSearchCharged'
+    'timeMeasures' | 'collectedResults' | 'currentPage' | 'totalPages' | 'isSearchChargeAttempted'
 >;
 
 export type ContentCrawlerUserData = {
     query: string;
-    /**
-     * Whether this page has already been charged for, so that a retry of the content request handler
-     * cannot charge it again.
-     */
-    isFetchCharged?: boolean;
+    /** As {@link SearchCrawlerUserData.isSearchChargeAttempted}, for one fetched page. */
+    isFetchChargeAttempted?: boolean;
     responseId: string;
     timeMeasures: TimeMeasure[];
     searchResult?: OrganicResult;

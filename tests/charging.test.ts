@@ -43,15 +43,16 @@ describe('Pay-per-event charging', () => {
         vi.unstubAllGlobals();
     });
 
-    // A build ships before the pricing model is switched over. The SDK ignores a charge off
-    // pay-per-event by itself, but the Standby endpoint answers 400, so that call has to be skipped.
-    it('does not call the standby charge endpoint off pay-per-event pricing', async () => {
+    // A build ships before the pricing model is switched over, and has to stay quiet until it does.
+    it('charges for nothing while the Actor is not on pay-per-event pricing', async () => {
         mocks.getPricingInfo.mockReturnValue({ isPayPerEvent: false });
+
+        await chargeSearch(CONTEXT);
+        await chargeFetch(ContentCrawlerTypes.CHEERIO, CONTEXT);
         mocks.getEnv.mockReturnValue(STANDBY_ENV);
+        await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, { ...CONTEXT, actorRequestId: 'request123' });
 
-        await chargeSearch({ ...CONTEXT, actorRequestId: 'request123' });
-        await chargeFetch(ContentCrawlerTypes.CHEERIO, { ...CONTEXT, actorRequestId: 'request123' });
-
+        expect(mocks.charge).not.toHaveBeenCalled();
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
@@ -61,11 +62,10 @@ describe('Pay-per-event charging', () => {
         mocks.getPricingInfo.mockImplementation(() => {
             throw new Error('ChargingManager is not initialized');
         });
-        mocks.getEnv.mockReturnValue(STANDBY_ENV);
 
-        const context = { ...CONTEXT, actorRequestId: 'request123' };
-        await expect(chargeFetch(ContentCrawlerTypes.CHEERIO, context)).resolves.toBeUndefined();
-        expect(fetchMock).not.toHaveBeenCalled();
+        await expect(chargeSearch(CONTEXT)).resolves.toBeUndefined();
+        await expect(chargeFetch(ContentCrawlerTypes.CHEERIO, CONTEXT)).resolves.toBeUndefined();
+        expect(mocks.charge).not.toHaveBeenCalled();
     });
 
     describe('in normal mode', () => {
@@ -100,18 +100,9 @@ describe('Pay-per-event charging', () => {
             expect(url).toBe(`${API_BASE_URL}v2/actor-runs/${RUN_ID}/charge`);
             expect(options.method).toBe('POST');
             expect(options.headers.Authorization).toBe(`Bearer ${TOKEN}`);
-            expect(options.signal).toBeInstanceOf(AbortSignal);
+            expect(options.headers['Idempotency-Key']).toBe('uniqueKey123');
+            expect(options.signal.aborted).toBe(false);
             expect(JSON.parse(options.body)).toEqual({ eventName: 'fetch', count: 1, requestId: 'request123' });
-        });
-
-        // Retrying a request that was already charged for must not bill the caller twice, which the
-        // platform can only tell from the key.
-        it('identifies the charge by the request it belongs to', async () => {
-            await chargeFetch(ContentCrawlerTypes.CHEERIO, { actorRequestId: 'request123', idempotencyKey: 'uniqueKey123' });
-            await chargeFetch(ContentCrawlerTypes.CHEERIO, { actorRequestId: 'request123', idempotencyKey: 'uniqueKey123' });
-
-            const keys = fetchMock.mock.calls.map((call) => call[1].headers['Idempotency-Key']);
-            expect(keys).toEqual(['uniqueKey123', 'uniqueKey123']);
         });
 
         // Single-tenant Standby gives every caller a run of their own, so its owner is the caller.

@@ -46,6 +46,11 @@ export function createTestServer(): express.Express {
         </div></body></html>`);
     });
 
+    // What Google serves when it refuses the query: parses fine, holds no results.
+    app.get('/serp-empty', (_req, res) => {
+        res.send('<html><body><h1>unusual traffic</h1></body></html>');
+    });
+
     app.get('/serp-error', (_req, res) => {
         res.status(500).send('nope');
     });
