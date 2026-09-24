@@ -7,12 +7,14 @@ import { TIP_KVS_KEY } from './const.js';
 export type ActorTip = {
     message: string;
     level: 'info' | 'warning';
+    recommendedActorId: string | null;
 };
 
 type SiteRule = {
     site: string;
     actorTitle: string;
     actorUrl: string;
+    actorId: string;
     domains: string[];
     matchesUrl?: (url: URL) => boolean;
 };
@@ -38,6 +40,7 @@ const SITE_RULES: SiteRule[] = [
         site: 'Facebook groups',
         actorTitle: 'Facebook Groups Scraper',
         actorUrl: 'https://apify.com/apify/facebook-groups-scraper',
+        actorId: '2chN8UQcH1CfxLRNE',
         domains: ['facebook.com'],
         matchesUrl: (url) => pathStartsWith(url.pathname, '/groups'),
     },
@@ -45,6 +48,7 @@ const SITE_RULES: SiteRule[] = [
         site: 'facebook.com',
         actorTitle: 'Facebook Posts Scraper',
         actorUrl: 'https://apify.com/apify/facebook-posts-scraper',
+        actorId: 'KoJrdxJCTtpon81KY',
         domains: ['facebook.com'],
     },
     {
@@ -52,6 +56,7 @@ const SITE_RULES: SiteRule[] = [
         site: 'Google Maps',
         actorTitle: 'Google Maps Scraper',
         actorUrl: 'https://apify.com/compass/crawler-google-places',
+        actorId: 'nwua9Gu5YrADL7ZDj',
         domains: ['google.*'],
         matchesUrl: (url) => url.hostname.startsWith('maps.') || pathStartsWith(url.pathname, '/maps'),
     },
@@ -59,42 +64,49 @@ const SITE_RULES: SiteRule[] = [
         site: 'zillow.com',
         actorTitle: 'Zillow Detail Scraper',
         actorUrl: 'https://apify.com/maxcopell/zillow-detail-scraper',
+        actorId: 'ENK9p4RZHg0iVso52',
         domains: ['zillow.com'],
     },
     {
         site: 'instagram.com',
         actorTitle: 'Instagram Scraper',
         actorUrl: 'https://apify.com/apify/instagram-scraper',
+        actorId: 'shu8hvrXbJbY3Eb9W',
         domains: ['instagram.com'],
     },
     {
         site: 'booking.com',
         actorTitle: 'Booking Scraper',
         actorUrl: 'https://apify.com/voyager/booking-scraper',
+        actorId: 'oeiQgfg5fsmIJB7Cn',
         domains: ['booking.com'],
     },
     {
         site: 'tripadvisor.com',
         actorTitle: 'Tripadvisor Scraper',
         actorUrl: 'https://apify.com/maxcopell/tripadvisor',
+        actorId: 'dbEyMBriog95Fv8CW',
         domains: ['tripadvisor.*'],
     },
     {
         site: 'youtube.com',
         actorTitle: 'YouTube Scraper',
         actorUrl: 'https://apify.com/streamers/youtube-scraper',
+        actorId: 'h7sDV53CddomktSi5',
         domains: ['youtube.com', 'youtu.be'],
     },
     {
         site: 'tiktok.com',
         actorTitle: 'TikTok Scraper',
         actorUrl: 'https://apify.com/clockworks/tiktok-scraper',
+        actorId: 'GdWCkxBtKWOsKjdch',
         domains: ['tiktok.com'],
     },
     {
         site: 'amazon.com',
         actorTitle: 'Amazon Crawler',
         actorUrl: 'https://apify.com/junglee/amazon-crawler',
+        actorId: 'BG3WDrGdteHgZgbPK',
         domains: ['amazon.*'],
     },
 ];
@@ -138,6 +150,7 @@ export function findActorTip(input: { query?: string; url?: string }): ActorTip 
         return {
             message: `For scraping ${rule.site}, we recommend using [${rule.actorTitle}](${rule.actorUrl})`,
             level: 'info',
+            recommendedActorId: rule.actorId,
         };
     }
 

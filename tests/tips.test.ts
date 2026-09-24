@@ -5,20 +5,22 @@ import { findActorTip, storeActorTip } from '../src/tips.js';
 
 describe('findActorTip', () => {
     it.each([
-        ['https://www.facebook.com/apify/posts', 'For scraping facebook.com, we recommend using [Facebook Posts Scraper](https://apify.com/apify/facebook-posts-scraper)'],
-        ['https://www.facebook.com/groups/1234567890', 'For scraping Facebook groups, we recommend using [Facebook Groups Scraper](https://apify.com/apify/facebook-groups-scraper)'],
-        ['https://www.zillow.com/homedetails/123', 'For scraping zillow.com, we recommend using [Zillow Detail Scraper](https://apify.com/maxcopell/zillow-detail-scraper)'],
-        ['https://www.instagram.com/apify/', 'For scraping instagram.com, we recommend using [Instagram Scraper](https://apify.com/apify/instagram-scraper)'],
-        ['https://www.google.com/maps/place/Prague', 'For scraping Google Maps, we recommend using [Google Maps Scraper](https://apify.com/compass/crawler-google-places)'],
-        ['https://maps.google.com/?q=prague', 'For scraping Google Maps, we recommend using [Google Maps Scraper](https://apify.com/compass/crawler-google-places)'],
-        ['https://www.booking.com/hotel/cz/prague.html', 'For scraping booking.com, we recommend using [Booking Scraper](https://apify.com/voyager/booking-scraper)'],
-        ['https://www.tripadvisor.com/Hotel_Review-g274707', 'For scraping tripadvisor.com, we recommend using [Tripadvisor Scraper](https://apify.com/maxcopell/tripadvisor)'],
-        ['https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'For scraping youtube.com, we recommend using [YouTube Scraper](https://apify.com/streamers/youtube-scraper)'],
-        ['https://youtu.be/dQw4w9WgXcQ', 'For scraping youtube.com, we recommend using [YouTube Scraper](https://apify.com/streamers/youtube-scraper)'],
-        ['https://www.tiktok.com/@apify', 'For scraping tiktok.com, we recommend using [TikTok Scraper](https://apify.com/clockworks/tiktok-scraper)'],
-        ['https://www.amazon.com/dp/B08N5WRWNW', 'For scraping amazon.com, we recommend using [Amazon Crawler](https://apify.com/junglee/amazon-crawler)'],
-    ])('recommends the Actor listed in the issue for %s', (query, message) => {
-        expect(findActorTip({ query })?.message).toBe(message);
+        ['https://www.facebook.com/apify/posts', 'For scraping facebook.com, we recommend using [Facebook Posts Scraper](https://apify.com/apify/facebook-posts-scraper)', 'KoJrdxJCTtpon81KY'],
+        ['https://www.facebook.com/groups/1234567890', 'For scraping Facebook groups, we recommend using [Facebook Groups Scraper](https://apify.com/apify/facebook-groups-scraper)', '2chN8UQcH1CfxLRNE'],
+        ['https://www.zillow.com/homedetails/123', 'For scraping zillow.com, we recommend using [Zillow Detail Scraper](https://apify.com/maxcopell/zillow-detail-scraper)', 'ENK9p4RZHg0iVso52'],
+        ['https://www.instagram.com/apify/', 'For scraping instagram.com, we recommend using [Instagram Scraper](https://apify.com/apify/instagram-scraper)', 'shu8hvrXbJbY3Eb9W'],
+        ['https://www.google.com/maps/place/Prague', 'For scraping Google Maps, we recommend using [Google Maps Scraper](https://apify.com/compass/crawler-google-places)', 'nwua9Gu5YrADL7ZDj'],
+        ['https://maps.google.com/?q=prague', 'For scraping Google Maps, we recommend using [Google Maps Scraper](https://apify.com/compass/crawler-google-places)', 'nwua9Gu5YrADL7ZDj'],
+        ['https://www.booking.com/hotel/cz/prague.html', 'For scraping booking.com, we recommend using [Booking Scraper](https://apify.com/voyager/booking-scraper)', 'oeiQgfg5fsmIJB7Cn'],
+        ['https://www.tripadvisor.com/Hotel_Review-g274707', 'For scraping tripadvisor.com, we recommend using [Tripadvisor Scraper](https://apify.com/maxcopell/tripadvisor)', 'dbEyMBriog95Fv8CW'],
+        ['https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'For scraping youtube.com, we recommend using [YouTube Scraper](https://apify.com/streamers/youtube-scraper)', 'h7sDV53CddomktSi5'],
+        ['https://youtu.be/dQw4w9WgXcQ', 'For scraping youtube.com, we recommend using [YouTube Scraper](https://apify.com/streamers/youtube-scraper)', 'h7sDV53CddomktSi5'],
+        ['https://www.tiktok.com/@apify', 'For scraping tiktok.com, we recommend using [TikTok Scraper](https://apify.com/clockworks/tiktok-scraper)', 'GdWCkxBtKWOsKjdch'],
+        ['https://www.amazon.com/dp/B08N5WRWNW', 'For scraping amazon.com, we recommend using [Amazon Crawler](https://apify.com/junglee/amazon-crawler)', 'BG3WDrGdteHgZgbPK'],
+    ])('recommends the Actor listed in the issue for %s', (query, message, actorId) => {
+        const tip = findActorTip({ query });
+        expect(tip?.message).toBe(message);
+        expect(tip?.recommendedActorId).toBe(actorId);
     });
 
     it('marks the tip as informational', () => {
@@ -138,7 +140,7 @@ describe('storeActorTip', () => {
 
     it('stores the tip under the reserved `TIP` key', async () => {
         const setValue = vi.spyOn(Actor, 'setValue').mockResolvedValue(undefined);
-        const tip = { message: 'For scraping tiktok.com, ...', level: 'info' } as const;
+        const tip = { message: 'For scraping tiktok.com, ...', level: 'info', recommendedActorId: 'GdWCkxBtKWOsKjdch' } as const;
 
         await storeActorTip(tip);
 
