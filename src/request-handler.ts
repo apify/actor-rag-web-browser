@@ -15,6 +15,7 @@ import {
     extractJsonLd,
     extractOpenGraphProperties,
     extractTitle,
+    getDocumentBaseUrl,
     processHtml,
 } from './website-content-crawler/html-processing.js';
 import { htmlToMarkdown } from './website-content-crawler/markdown.js';
@@ -181,9 +182,12 @@ async function handleContent(
     const { request } = context;
     const { contentScraperSettings: settings } = request.userData;
 
+    const pageUrl = request.loadedUrl ?? request.url;
+    const baseUrl = getDocumentBaseUrl($, pageUrl);
+
     const $html = $('html');
     const html = $html.html()!;
-    const processedHtml = await processHtml(html, request.url, settings, $);
+    const processedHtml = await processHtml(html, baseUrl, settings, $);
     addTimeMeasureEvent(request.userData, `${crawlerType}-process-html`);
 
     const isTooLarge = processedHtml.length > settings.maxHtmlCharsToProcess;
@@ -204,9 +208,9 @@ async function handleContent(
             description: $('meta[name=description]').first().attr('content') ?? undefined,
             keywords: $('meta[name=keywords]').first().attr('content') ?? undefined,
             languageCode: $html.first().attr('lang') ?? undefined,
-            url: request.loadedUrl ?? request.url,
+            url: pageUrl,
             redirectedUrl: request.loadedUrl,
-            canonicalUrl: extractCanonicalUrl($, request.loadedUrl ?? request.url),
+            canonicalUrl: extractCanonicalUrl($, baseUrl),
             openGraph: extractOpenGraphProperties($),
             jsonLd: extractJsonLd($),
             headers,
@@ -214,7 +218,7 @@ async function handleContent(
         query: request.userData.query,
         text: settings.outputFormats.includes('text') ? text : undefined,
         markdown: settings.outputFormats.includes('markdown')
-            ? htmlToMarkdown(processedHtml, request.loadedUrl ?? request.url)
+            ? htmlToMarkdown(processedHtml, pageUrl, baseUrl)
             : undefined,
         html: settings.outputFormats.includes('html') ? processedHtml : undefined,
     };

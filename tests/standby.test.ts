@@ -102,6 +102,40 @@ describe('Standby RAG tests', () => {
         expect(getImageRequestCount()).toBe(0);
     });
 
+    it.each([
+        { scrapingTool: 'raw-http', htmlTransformer: 'none' },
+        { scrapingTool: 'raw-http', htmlTransformer: 'readableText' },
+        { scrapingTool: 'browser-playwright', htmlTransformer: 'none' },
+        { scrapingTool: 'browser-playwright', htmlTransformer: 'readableText' },
+    ])('standby request $scrapingTool with $htmlTransformer resolves links against the base URL', async (params) => {
+        // A URL of its own for each case, so that the browser doesn't revalidate the page in its cache.
+        const pageUrl = `${baseUrl}/with-base?case=${params.scrapingTool}-${params.htmlTransformer}`;
+        const query = new URLSearchParams({ query: pageUrl, ...params });
+        const response = await fetch(`http://localhost:${browserServerPort}/search?${query}`);
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data[0].metadata.url).toBe(pageUrl);
+        expect(data[0].metadata.canonicalUrl).toBe('https://cdn.example.org/sub/canonical-page');
+        expect(data[0].markdown).toContain('[relative link](https://cdn.example.org/sub/article)');
+        expect(data[0].markdown).toContain(`[in-page anchor](${pageUrl}#section)`);
+        // Readability adds the title as a heading, which tells it has extracted the content.
+        expect(data[0].markdown.startsWith('# Test Page With Base')).toBe(params.htmlTransformer === 'readableText');
+    });
+
+    it('standby request with readableText resolves links against the URL redirected to', async () => {
+        const query = new URLSearchParams({ query: `${baseUrl}/redirect/page`, htmlTransformer: 'readableText' });
+        const response = await fetch(`http://localhost:${browserServerPort}/search?${query}`);
+        const data = await response.json();
+
+        const pageUrl = `${baseUrl}/redirected/page`;
+        expect(response.status).toBe(200);
+        expect(data[0].metadata.url).toBe(pageUrl);
+        expect(data[0].markdown).toContain(`[relative link](${baseUrl}/redirected/article)`);
+        expect(data[0].markdown).toContain(`[in-page anchor](${pageUrl}#section)`);
+        expect(data[0].markdown.startsWith('# Test Page With Base')).toBe(true);
+    });
+
     it('standby request playwright does not download media files of the page', async () => {
         resetImageRequestCount();
 
