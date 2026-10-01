@@ -22,6 +22,7 @@ import { ContentCrawlerTypes, GOOGLE_STANDARD_RESULTS_PER_PAGE } from './const.j
 import { deduplicateResults, scrapeOrganicResults } from './google-search/google-extractors-urls.js';
 import { failedRequestHandler, requestHandlerCheerio, requestHandlerPlaywright } from './request-handler.js';
 import { addEmptyResultToResponse, addResultToResponse, sendResponseError, sendResponseIfFinished } from './responses.js';
+import { TEXT_DOCUMENT_MIME_TYPES } from './text-documents.js';
 import type { ContentCrawlerOptions, ContentCrawlerUserData, Output, SearchCrawlerUserData } from './types.js';
 import { addTimeMeasureEvent, createRequest, createSearchRequest } from './utils.js';
 
@@ -284,6 +285,7 @@ async function createCheerioContentCrawler(
         ...crawlerOptions,
         keepAlive: crawlerOptions.keepAlive,
         httpClient: contentCrawlerHttpClient,
+        additionalMimeTypes: [...TEXT_DOCUMENT_MIME_TYPES],
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
         requestHandler: (async (context) => {
             const typedContext = context as unknown as CheerioCrawlingContext<ContentCrawlerUserData>;

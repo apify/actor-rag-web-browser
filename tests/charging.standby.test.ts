@@ -15,7 +15,7 @@ import { createResponsePromise } from '../src/responses.js';
 import { createServer } from '../src/server.js';
 import type { ContentScraperSettings, SearchCrawlerUserData } from '../src/types.js';
 import { createRequest, createSearchRequest } from '../src/utils.js';
-import { startTestServer, stopTestServer } from './helpers/server.js';
+import { MARKDOWN_DOCUMENT, startTestServer, stopTestServer } from './helpers/server.js';
 
 const charging = vi.hoisted(() => ({
     chargeSearch: vi.fn().mockResolvedValue(undefined),
@@ -101,6 +101,19 @@ describe('Charging from standby requests', () => {
         expect(response.status).toBe(200);
         const [result] = await response.json();
         expect(result.crawl.httpStatusMessage).toBe('Skipped media file');
+        expect(charging.chargeFetch).toHaveBeenCalledExactlyOnceWith(ContentCrawlerTypes.CHEERIO, {
+            actorRequestId: undefined,
+            idempotencyKey: result.crawl.uniqueKey,
+        });
+    });
+
+    // Deliberate: a Markdown or plain text document is a page like any other, so it counts as a fetch.
+    it('charges for a Markdown document', async () => {
+        const response = await fetch(`${standbyUrl}/search?query=${baseUrl}/agents.md`);
+
+        expect(response.status).toBe(200);
+        const [result] = await response.json();
+        expect(result.markdown).toBe(MARKDOWN_DOCUMENT);
         expect(charging.chargeFetch).toHaveBeenCalledExactlyOnceWith(ContentCrawlerTypes.CHEERIO, {
             actorRequestId: undefined,
             idempotencyKey: result.crawl.uniqueKey,

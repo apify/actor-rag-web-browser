@@ -14,7 +14,8 @@ similar to the [web browsing](https://openai.com/index/introducing-chatgpt-searc
 - 🔄 **Flexible scraping** with Browser mode for complex websites or Plain HTML mode for faster scraping
 - 🕷 Automatically **bypasses anti-scraping protections** using proxies and browser fingerprints
 - 📝 Output formats include **Markdown**, plain text, and HTML
-- 🔗 **Links are converted to absolute URLs**, so they stay valid outside of the page they came from
+- 📄 **Markdown and plain text files**, such as `agents.md` or `llms.txt`, are returned unchanged
+- 🔗 **Links on web pages are converted to absolute URLs**, so they stay valid outside of the page they came from
 - 🪗 **Collapsed sections are expanded** in Browser mode, so their content is not missing from the output
 - 🔌 Supports **OpenAPI and MCP** for easy integration
 - 🪟 It's **open source**, so you can review and modify it
@@ -226,6 +227,19 @@ Media files carry no text for the LLM, so the Actor never downloads them:
   This saves bandwidth and often speeds up the page load, and it has no effect on the extracted content.
 - Search results (and a `query` that is a URL) pointing directly to a media file, e.g. `https://example.com/video.mp4`,
   are not crawled at all. Such a result is returned with an empty text and `Skipped media file` as the HTTP status message.
+
+### Markdown and plain text files
+
+Files that are Markdown or plain text already, e.g. `agents.md` or `llms.txt`, are recognized by their content type
+(`text/markdown`, `text/x-markdown`, or `text/plain`), or by their extension when the server sends none, and returned
+unchanged, with either scraping tool:
+
+- `markdown` and `text` hold the file as it is, so its relative links are not converted to absolute URLs.
+- `html` holds the file as preformatted text, i.e. in a `<pre>` element.
+- `metadata.title` is the level 1 heading (`# …`) that a Markdown file starts with, after its front matter, or an
+  empty string. A file served as plain text counts as Markdown when its name ends with `.md`, the way GitHub serves
+  raw files, and when it's `llms.txt` or `llms-full.txt`.
+- `metadata` holds no other data about the file than its `url`, `redirectedUrl`, and HTTP response `headers`.
 
 ### Collapsed content
 
