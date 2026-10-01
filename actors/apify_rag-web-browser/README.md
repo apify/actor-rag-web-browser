@@ -13,7 +13,7 @@ similar to the [web browsing](https://openai.com/index/introducing-chatgpt-searc
 - ⚙️ Supports **dynamic JavaScript-heavy websites** using a headless browser
 - 🔄 **Flexible scraping** with Browser mode for complex websites or Plain HTML mode for faster scraping
 - 🕷 Automatically **bypasses anti-scraping protections** using proxies and browser fingerprints
-- 📝 Output formats include **Markdown**, plain text, and HTML
+- 📝 Output formats include **Markdown**, plain text, HTML, and a **`links`** list (all absolute HTTP(S) URLs on the page)
 - 🔗 **Links are converted to absolute URLs**, so they stay valid outside of the page they came from
 - 🪗 **Collapsed sections are expanded** in Browser mode, so their content is not missing from the output
 - 🔌 Supports **OpenAPI and MCP** for easy integration

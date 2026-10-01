@@ -12,7 +12,7 @@ import type { ContentCrawlerTypes } from './const.js';
  */
 type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
-export type OutputFormats = 'text' | 'markdown' | 'html';
+export type OutputFormats = 'text' | 'markdown' | 'html' | 'links';
 export type SERPProxyGroup = 'GOOGLE_SERP' | 'SHADER';
 export type ScrapingTool = 'browser-playwright' | 'raw-http';
 
@@ -145,6 +145,7 @@ export type Output = {
     text?: string | null;
     html?: string | null;
     markdown?: string | null;
+    links?: string[];
     query?: string;
     crawl: {
         createdAt?: Date;

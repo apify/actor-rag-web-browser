@@ -13,6 +13,7 @@ import { addTimeMeasureEvent, isActorStandby, transformTimeMeasuresToRelative } 
 import {
     extractCanonicalUrl,
     extractJsonLd,
+    extractLinks,
     extractOpenGraphProperties,
     extractTitle,
     processHtml,
@@ -217,6 +218,9 @@ async function handleContent(
             ? htmlToMarkdown(processedHtml, request.loadedUrl ?? request.url)
             : undefined,
         html: settings.outputFormats.includes('html') ? processedHtml : undefined,
+        links: settings.outputFormats.includes('links')
+            ? extractLinks($, request.loadedUrl ?? request.url)
+            : undefined,
     };
 
     addTimeMeasureEvent(request.userData, `${crawlerType}-before-response-send`);

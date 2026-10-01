@@ -44,6 +44,30 @@ export function extractCanonicalUrl($: CheerioAPI, baseUrl: string): string | un
     return undefined;
 }
 
+/**
+ * Collects every `<a href>` on the page as a de-duplicated list of absolute HTTP(S) URLs, resolved
+ * against `baseUrl`. Non-HTTP(S) schemes (`mailto:`, `tel:`, `javascript:`, …), unparseable hrefs and
+ * bare same-page anchors (`#section`) are dropped. Order of first appearance is preserved.
+ */
+export function extractLinks($: CheerioAPI, baseUrl: string): string[] {
+    const seen = new Set<string>();
+
+    for (const element of $('a[href]').get()) {
+        const href = $(element).attr('href')?.trim();
+        if (!href || href.startsWith('#')) continue;
+
+        try {
+            const url = new URL(href, baseUrl);
+            if (url.protocol !== 'http:' && url.protocol !== 'https:') continue;
+            seen.add(url.href);
+        } catch {
+            // Ignore hrefs that don't resolve to a valid URL.
+        }
+    }
+
+    return [...seen];
+}
+
 export function extractOpenGraphProperties($: CheerioAPI): OpenGraphProperty[] | undefined {
     const properties = $(OPEN_GRAPH_SELECTOR).get().flatMap((element) => {
         const property = $(element).attr('property');

@@ -43,7 +43,7 @@
                     {
                         "name": "outputFormats",
                         "in": "query",
-                        "description": "Select one or more formats to which the target web pages will be extracted and saved in the resulting dataset.",
+                        "description": "Select one or more formats to which the target web pages will be extracted and saved in the resulting dataset. `links` returns an ordered, de-duplicated array of the absolute HTTP(S) URLs found on each page.",
                         "required": false,
                         "schema": {
                             "type": "array",
@@ -52,7 +52,8 @@
                                 "enum": [
                                     "text",
                                     "markdown",
-                                    "html"
+                                    "html",
+                                    "links"
                                 ]
                             },
                             "default": [

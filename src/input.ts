@@ -119,8 +119,8 @@ async function processRagWebBrowserInput(input: Partial<RagWebBrowserInput>, sta
     if (!input.outputFormats || input.outputFormats.length === 0) {
         input.outputFormats = ragWebBrowserInputSchema.properties.outputFormats.default as OutputFormats[];
         log.info(`The \`outputFormats\` parameter is not defined. Using default value \`${input.outputFormats}\`.`);
-    } else if (input.outputFormats.some((format) => !['text', 'markdown', 'html'].includes(format))) {
-        throw new UserInputError('The `outputFormats` array may only contain `text`, `markdown`, or `html`.');
+    } else if (input.outputFormats.some((format) => !['text', 'markdown', 'html', 'links'].includes(format))) {
+        throw new UserInputError('The `outputFormats` array may only contain `text`, `markdown`, `html`, or `links`.');
     }
 
     // SERP proxy group
