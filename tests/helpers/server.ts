@@ -53,6 +53,20 @@ export function createTestServer(): express.Express {
         sendHtml('with-image.html', res);
     });
 
+    app.get('/with-base', (_req, res) => {
+        sendHtml('with-base.html', res);
+    });
+
+    // The page above without its `<base>`, reached through a redirect from another path.
+    app.get('/redirect/page', (_req, res) => {
+        res.redirect('/redirected/page');
+    });
+
+    app.get('/redirected/page', (_req, res) => {
+        const html = fs.readFileSync(path.join(__dirname, 'html', 'with-base.html'), 'utf-8');
+        res.send(html.replace(/<base [^>]*>/, ''));
+    });
+
     // A minimal stand-in for a Google result page, holding a single organic result that points back
     // at this server, so that the search crawler can be exercised without reaching Google.
     app.get('/serp', (req, res) => {
