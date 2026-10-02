@@ -103,7 +103,7 @@ Relative links of a web page, such as `/docs`, are resolved into absolute URLs a
 Media files carry no text to convert, so they are never downloaded. Images, audio, video, and fonts of the converted page are blocked in the Browser mode, and a URL pointing directly to a media file, e.g. `https://example.com/video.mp4`, is not fetched at all — the output contains no content and `Skipped media file` as the HTTP status message.
 
 ### What happens with Markdown and plain text files?
-Files that are Markdown or plain text already, e.g. `agents.md` or `llms.txt`, need no conversion, so they are returned unchanged, with relative links as they are. Their metadata holds only the URL and the HTTP response headers.
+Files that are Markdown or plain text already, e.g. `agents.md` or `llms.txt`, need no conversion, so they are returned unchanged, with relative links as they are.
 
 ### What happens with collapsed content?
 Content that a page adds only when the reader expands it, e.g. accordions or FAQ sections, would be missing from the markdown. To capture it, the Browser mode clicks the collapsed elements of the page, i.e. those matching the `[aria-expanded="false"]` CSS selector, before converting it. Elements linking to another page are not clicked, so that the Actor stays on the page it was asked to convert.
