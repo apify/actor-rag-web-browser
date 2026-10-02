@@ -305,10 +305,11 @@ export async function requestHandlerPlaywright(
     const contentType = headers?.['content-type'];
     const statusCode = response?.status();
 
-    // The browser shows such a document as plain text, so there is nothing to wait for, close or expand.
+    // The browser shows such a document as plain text, so there is nothing to wait for, close or expand. The text
+    // is taken from the page as it is: serialized and parsed again, it would lose a line break it starts with.
     if (isTextDocument(contentType)) {
-        const $ = await context.parseWithCheerio();
-        return handleTextDocument($('body').text(), ContentCrawlerTypes.PLAYWRIGHT, statusCode, headers, context);
+        const text = await page.evaluate(() => document.body.textContent ?? '');
+        return handleTextDocument(text, ContentCrawlerTypes.PLAYWRIGHT, statusCode, headers, context);
     }
 
     if (settings.dynamicContentWaitSecs > 0) {
