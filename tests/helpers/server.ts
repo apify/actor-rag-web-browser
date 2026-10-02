@@ -15,12 +15,8 @@ export function resetImageRequestCount(): void {
     imageRequestCount = 0;
 }
 
-/** Starts with front matter, like https://apify.com/agents.md does, and holds syntax that HTML processing would escape. */
+/** Holds the syntax that would be escaped, were the document processed as HTML. */
 export const MARKDOWN_DOCUMENT = [
-    '---',
-    'name: agent-instructions',
-    '---',
-    '',
     '# Agent instructions',
     '',
     'Read the *whole* file before you [start](/docs/start).',
@@ -32,22 +28,7 @@ export const MARKDOWN_DOCUMENT = [
     '',
 ].join('\n');
 
-/** Markdown by its specification, though served as plain text, and not ASCII, which a browser garbles in a
- * document in UTF-8 that doesn't declare its charset. */
-export const LLMS_TXT_DOCUMENT = '# Example docs\n\n> Docs for AI agents: “quotes”, café.\n';
-
-/** Plain text, the first line of which is therefore no heading. */
-export const PLAIN_TEXT_DOCUMENT = '# Not a heading\n\nPlain text, returned as it is.\n';
-
-/** Served in windows-1252. */
-export const WINDOWS_1252_DOCUMENT = '# Café crème\n';
-
-/** Number of times the browser has revalidated its cached copy of a document, answered with 304 Not Modified. */
-let revalidationCount = 0;
-
-export function getRevalidationCount(): number {
-    return revalidationCount;
-}
+export const PLAIN_TEXT_DOCUMENT = '# Example docs\n\n- [Guide](https://example.com/guide): how to start\n';
 
 /**
  * Creates and returns an Express server with test routes
@@ -90,43 +71,11 @@ export function createTestServer(): express.Express {
     });
 
     app.get('/agents.md', (_req, res) => {
-        res.type('text/markdown; charset=utf-8').send(MARKDOWN_DOCUMENT);
+        res.type('text/markdown').send(MARKDOWN_DOCUMENT);
     });
 
-    // Served the way nginx serves a `.txt` file by default: without a charset, and with an ETag. Must be
-    // revalidated whenever the browser reuses its cached copy, which is answered with 304 Not Modified, without
-    // a body and a content type.
-    app.get('/llms.txt', (req, res) => {
-        const headers = { ETag: '"llms"', 'Cache-Control': 'no-cache' };
-        if (req.headers['if-none-match'] === headers.ETag) {
-            revalidationCount++;
-            res.writeHead(304, headers).end();
-            return;
-        }
-        res.writeHead(200, { ...headers, 'Content-Type': 'text/plain' }).end(LLMS_TXT_DOCUMENT);
-    });
-
-    app.get('/notes.txt', (_req, res) => {
+    app.get('/llms.txt', (_req, res) => {
         res.type('text/plain').send(PLAIN_TEXT_DOCUMENT);
-    });
-
-    // As GitHub serves raw files.
-    app.get('/README.md', (_req, res) => {
-        res.type('text/plain').send(MARKDOWN_DOCUMENT);
-    });
-
-    app.get('/windows-1252.txt', (_req, res) => {
-        res.type('text/plain; charset=windows-1252').send(Buffer.from('2320436166e9206372e86d650a', 'hex'));
-    });
-
-    // Sent without a content type, which Crawlee then infers from the URL extension, and a browser from the content.
-    app.get('/untyped.md', (_req, res) => {
-        res.end(MARKDOWN_DOCUMENT);
-    });
-
-    // Saved with a byte order mark, as Windows editors do.
-    app.get('/bom.md', (_req, res) => {
-        res.type('text/markdown; charset=utf-8').send(Buffer.concat([Buffer.from('efbbbf', 'hex'), Buffer.from(MARKDOWN_DOCUMENT)]));
     });
 
     // Has no media file extension, so it is not skipped - the crawler rejects its content type instead.

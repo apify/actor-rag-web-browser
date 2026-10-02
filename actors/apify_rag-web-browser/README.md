@@ -231,15 +231,9 @@ Media files carry no text for the LLM, so the Actor never downloads them:
 ### Markdown and plain text files
 
 Files that are Markdown or plain text already, e.g. `agents.md` or `llms.txt`, are recognized by their content type
-(`text/markdown`, `text/x-markdown`, or `text/plain`), or by their extension when the server sends none, and returned
-unchanged, with either scraping tool:
-
-- `markdown` and `text` hold the file as it is, so its relative links are not converted to absolute URLs.
-- `html` holds the file as preformatted text, i.e. in a `<pre>` element.
-- `metadata.title` is the level 1 heading (`# …`) that a Markdown file starts with, after its front matter, or an
-  empty string. A file served as plain text counts as Markdown when its name ends with `.md`, the way GitHub serves
-  raw files, and when it's `llms.txt` or `llms-full.txt`.
-- `metadata` holds no other data about the file than its `url`, `redirectedUrl`, and HTTP response `headers`.
+(`text/markdown` or `text/plain`) and returned unchanged in `markdown` and `text`, with either scraping tool. Their
+relative links are therefore not converted to absolute URLs, and their metadata holds only the `url`, `redirectedUrl`,
+and HTTP response `headers`.
 
 ### Collapsed content
 

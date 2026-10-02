@@ -8,13 +8,6 @@ import { type CheerioCrawlingContext, htmlToText, log, type PlaywrightCrawlingCo
 import { ContentCrawlerStatus, ContentCrawlerTypes } from './const.js';
 import { blockMediaRequests, SKIPPED_MEDIA_FILE_MESSAGE } from './media.js';
 import { addResultToResponse, responseData } from './responses.js';
-import {
-    decodeUtf8TextDocument,
-    extractMarkdownTitle,
-    isMarkdownDocument,
-    isTextDocument,
-    textDocumentToHtml,
-} from './text-documents.js';
 import type { ContentCrawlerUserData, Output } from './types.js';
 import { addTimeMeasureEvent, isActorStandby, transformTimeMeasuresToRelative } from './utils.js';
 import {
@@ -124,6 +117,13 @@ function isValidContentType(contentType: string | undefined) {
     return ['text', 'html', 'xml'].some((type) => contentType?.includes(type));
 }
 
+/** Content types of documents that are Markdown or plain text already, which need no conversion. */
+export const TEXT_DOCUMENT_CONTENT_TYPES = ['text/markdown', 'text/plain'];
+
+function isTextDocument(contentType: string | undefined) {
+    return TEXT_DOCUMENT_CONTENT_TYPES.some((type) => contentType?.includes(type));
+}
+
 /** Playwright exposes the headers through a method, but the context types also allow a plain object. */
 function getPlaywrightResponseHeaders(response: PlaywrightCrawlingContext['response']): IncomingHttpHeaders | undefined {
     if (!response) return undefined;
@@ -178,26 +178,6 @@ async function skipUnparsableResponse(
     return undefined;
 }
 
-/**
- * Stores the result of a page we have extracted the content from.
- */
-async function pushHandledResult(
-    context: ContentCrawlingContext,
-    crawlerType: ContentCrawlerTypes,
-    result: Output,
-): Promise<Output> {
-    const { request } = context;
-
-    addTimeMeasureEvent(request.userData, `${crawlerType}-before-response-send`);
-    if (request.userData.contentScraperSettings.debugMode) {
-        // eslint-disable-next-line no-param-reassign
-        result.crawl.debug = { timeMeasures: transformTimeMeasuresToRelative(request.userData.timeMeasures!) };
-    }
-    log.info(`Adding result to the Apify dataset, url: ${request.url}`);
-    await context.pushData(result);
-    return result;
-}
-
 async function handleContent(
     $: CheerioCrawlingContext['$'],
     crawlerType: ContentCrawlerTypes,
@@ -246,16 +226,21 @@ async function handleContent(
         html: settings.outputFormats.includes('html') ? processedHtml : undefined,
     };
 
-    return pushHandledResult(context, crawlerType, result);
+    addTimeMeasureEvent(request.userData, `${crawlerType}-before-response-send`);
+    if (settings.debugMode) {
+        result.crawl.debug = { timeMeasures: transformTimeMeasuresToRelative(request.userData.timeMeasures!) };
+    }
+    log.info(`Adding result to the Apify dataset, url: ${request.url}`);
+    await context.pushData(result);
+    return result;
 }
 
 /**
- * Stores the body of a Markdown or plain text document as it is, since it is already in the form we
- * would convert a page to.
+ * Stores a Markdown or plain text document as it is, since it is already in the form we would convert a
+ * page to.
  */
 async function handleTextDocument(
-    body: string,
-    contentType: string | undefined,
+    text: string,
     crawlerType: ContentCrawlerTypes,
     statusCode: number | undefined,
     headers: IncomingHttpHeaders | undefined,
@@ -263,8 +248,6 @@ async function handleTextDocument(
 ): Promise<Output> {
     const { request } = context;
     const { contentScraperSettings: settings } = request.userData;
-    // Unlike a browser, `Buffer#toString` keeps the byte order mark the document may start with.
-    const text = body.startsWith('\uFEFF') ? body.slice(1) : body;
 
     const result: Output = {
         crawl: {
@@ -276,7 +259,7 @@ async function handleTextDocument(
         },
         searchResult: request.userData.searchResult!,
         metadata: {
-            title: isMarkdownDocument(contentType, request.loadedUrl ?? request.url) ? extractMarkdownTitle(text) : '',
+            title: '',
             url: request.loadedUrl ?? request.url,
             redirectedUrl: request.loadedUrl,
             headers,
@@ -284,60 +267,17 @@ async function handleTextDocument(
         query: request.userData.query,
         text: settings.outputFormats.includes('text') ? text : undefined,
         markdown: settings.outputFormats.includes('markdown') ? text : undefined,
-        html: settings.outputFormats.includes('html') ? textDocumentToHtml(text) : undefined,
+        // The document has no HTML to return.
+        html: settings.outputFormats.includes('html') ? null : undefined,
     };
 
-    return pushHandledResult(context, crawlerType, result);
-}
-
-/**
- * Tells the type of a document served without one, or revalidated in the browser cache (the response is then
- * 304 Not Modified, often without a type), by what the page shows. Only while the page shows the document of
- * the response, which a script could have replaced in the meantime.
- */
-async function getUntypedDocumentType(
-    { page, response }: PlaywrightCrawlingContext<ContentCrawlerUserData>,
-): Promise<string | undefined> {
-    const shown = await page.evaluate(() => ({ type: document.contentType, url: document.URL })).catch(() => undefined);
-    if (!shown || (response && shown.url.split('#')[0] !== response.url().split('#')[0])) return undefined;
-
-    return shown.type;
-}
-
-/**
- * Reads a document revalidated in the browser cache, which keeps its body, unlike the response to the
- * revalidation (304 Not Modified). A Content Security Policy of the document can prevent it.
- */
-async function readCachedDocument(
-    page: PlaywrightCrawlingContext['page'],
-): Promise<{ body: Buffer, contentType?: string } | undefined> {
-    const cached = await page.evaluate(async () => {
-        const response = await fetch(document.URL, { cache: 'only-if-cached', mode: 'same-origin' });
-        const bytes = new Uint8Array(await response.arrayBuffer());
-        let binary = '';
-        for (let i = 0; i < bytes.length; i += 0x8000) {
-            binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-        }
-        return { body: btoa(binary), contentType: response.headers.get('content-type') ?? undefined };
-    }).catch(() => undefined);
-
-    return cached && { body: Buffer.from(cached.body, 'base64'), contentType: cached.contentType };
-}
-
-/**
- * Reads a text document as the browser shows it, unless it's in UTF-8, see {@link decodeUtf8TextDocument}.
- * Then its body is needed, which the browser doesn't keep for a large one.
- */
-async function readPlaywrightTextDocument(
-    { page, response }: PlaywrightCrawlingContext<ContentCrawlerUserData>,
-    contentType: string | undefined,
-): Promise<string> {
-    const served = response?.status() === 304
-        ? await readCachedDocument(page)
-        : await response?.body().then((body) => ({ body, contentType }), () => undefined);
-
-    return (served && decodeUtf8TextDocument(served.body, served.contentType))
-        ?? page.evaluate(() => document.body?.textContent ?? '');
+    addTimeMeasureEvent(request.userData, `${crawlerType}-before-response-send`);
+    if (settings.debugMode) {
+        result.crawl.debug = { timeMeasures: transformTimeMeasuresToRelative(request.userData.timeMeasures!) };
+    }
+    log.info(`Adding result to the Apify dataset, url: ${request.url}`);
+    await context.pushData(result);
+    return result;
 }
 
 /**
@@ -366,10 +306,9 @@ export async function requestHandlerPlaywright(
     const statusCode = response?.status();
 
     // The browser shows such a document as plain text, so there is nothing to wait for, close or expand.
-    const documentType = contentType ?? await getUntypedDocumentType(context);
-    if (isTextDocument(documentType)) {
-        const body = await readPlaywrightTextDocument(context, contentType);
-        return handleTextDocument(body, documentType, ContentCrawlerTypes.PLAYWRIGHT, statusCode, headers, context);
+    if (isTextDocument(contentType)) {
+        const $ = await context.parseWithCheerio();
+        return handleTextDocument($('body').text(), ContentCrawlerTypes.PLAYWRIGHT, statusCode, headers, context);
     }
 
     if (settings.dynamicContentWaitSecs > 0) {
@@ -440,7 +379,7 @@ export async function requestHandlerCheerio(
     // Its content type is also inferred from the URL extension when the server doesn't send one.
     if (isTextDocument(contentType.type)) {
         const text = typeof body === 'string' ? body : body.toString(contentType.encoding);
-        return handleTextDocument(text, contentType.type, ContentCrawlerTypes.CHEERIO, statusCode, response.headers, context);
+        return handleTextDocument(text, ContentCrawlerTypes.CHEERIO, statusCode, response.headers, context);
     }
 
     const skipped = await skipUnparsableResponse($, response.headers['content-type'], statusCode, context);
