@@ -38,18 +38,24 @@ export function createTestServer(): express.Express {
         sendHtml('with-image.html', res);
     });
 
+    const sendLinksPage = (base: string, res: express.Response) => {
+        // Enough text for Readability to extract the content.
+        const text = `<p>${'Some readable text. '.repeat(20)}</p>`.repeat(8);
+        res.send(`<html><head>${base}<link rel="canonical" href="canonical-page"></head><body>
+            <p><a href="article">relative link</a> <a href="#section">in-page anchor</a></p>${text}
+        </body></html>`);
+    };
+
     app.get('/with-base', (_req, res) => {
-        sendHtml('with-base.html', res);
+        sendLinksPage('<base href="https://cdn.example.org/sub/">', res);
     });
 
-    // The page above without its `<base>`, reached through a redirect from another path.
     app.get('/redirect/page', (_req, res) => {
         res.redirect('/redirected/page');
     });
 
     app.get('/redirected/page', (_req, res) => {
-        const html = fs.readFileSync(path.join(__dirname, 'html', 'with-base.html'), 'utf-8');
-        res.send(html.replace(/<base [^>]*>/, ''));
+        sendLinksPage('', res);
     });
 
     // A minimal stand-in for a Google result page, holding a single organic result that points back

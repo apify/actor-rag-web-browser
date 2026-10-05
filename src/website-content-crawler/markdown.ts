@@ -16,11 +16,10 @@ function cleanAttribute(attribute: string | null): string {
 function resolveHref(href: string, pageUrl: string, baseUrl: string): string {
     if (!pageUrl) return href;
     try {
-        // Unlike browsers, resolve in-page anchors against the page, so that a `<base>` doesn't move them elsewhere.
-        // Leading controls and spaces are skipped, like the URL parser does.
-        return new URL(href, /^[\0-\x20]*#/.test(href) ? pageUrl : baseUrl).toString();
+        // Unlike a browser, keep in-page anchors on the page, even when a `<base>` points elsewhere.
+        return new URL(href, href.startsWith('#') ? pageUrl : baseUrl).toString();
     } catch {
-        log.warning(`Failed to resolve link against the page URL: ${href}`);
+        log.warning(`Failed to resolve link: ${href}`);
         return href;
     }
 }
@@ -44,10 +43,9 @@ const inlineLinkRule = (pageUrl: string, baseUrl: string): Rule => ({
 
 /**
  * Converts HTML to markdown using Turndown (source: Website Content Crawler).
- * Relative links are resolved against `baseUrl` (the page URL, unless the page has a `<base>`), and in-page
- * anchors against `url`, when provided.
+ * Relative links are resolved against `baseUrl`, and in-page anchors against `pageUrl`, when provided.
  */
-export const htmlToMarkdown = (html: string | null, url?: string, baseUrl = url): string | null => {
+export const htmlToMarkdown = (html: string | null, pageUrl?: string, baseUrl = pageUrl): string | null => {
     try {
         if (!html?.length) return null;
 
@@ -55,7 +53,7 @@ export const htmlToMarkdown = (html: string | null, url?: string, baseUrl = url)
         if (html.length <= GFM_MAX_HTML_LENGTH) {
             processor.use(plugin.gfm); // Use GitHub Flavored Markdown
         }
-        processor.addRule('inlineLink', inlineLinkRule(url ?? '', baseUrl ?? ''));
+        processor.addRule('inlineLink', inlineLinkRule(pageUrl ?? '', baseUrl ?? ''));
 
         return processor.turndown(html);
     } catch (err: unknown) {

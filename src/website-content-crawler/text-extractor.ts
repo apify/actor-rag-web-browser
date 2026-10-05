@@ -9,7 +9,6 @@ virtualConsole.on('error', (error) => {
 
 /**
  * Extracts readable text from the HTML using Mozilla's Readability (source: Website Content Crawler).
- * Relative links are resolved against `url`, the base URL of the page (see `getDocumentBaseUrl`).
  */
 export async function readableText({
     html,
@@ -25,8 +24,6 @@ export async function readableText({
     // Add virtualConsole to silence this Error: Could not parse CSS stylesheet at exports.createStylesheet
     // There is some issue with the VirtualConsole as the error is not logged
     const dom = new JSDOM(html, { url, virtualConsole });
-    // The `<base>` of the page is resolved already, so it mustn't be resolved once more against `url`.
-    for (const base of dom.window.document.querySelectorAll('base')) base.remove();
 
     if (options?.fallbackToNone && !isProbablyReaderable(dom.window.document, { minScore: 100 })) {
         return html;
