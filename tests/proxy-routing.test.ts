@@ -14,15 +14,13 @@ import { parseParameters } from '../src/utils.js';
 
 process.env.ACTOR_FULL_NAME = 'apify/rag-web-browser';
 
-// A custom proxy everywhere keeps `Actor.createProxyConfiguration` off the network: the default
-// `{useApifyProxy:true}` would check proxy access against Apify on every call.
+// A custom proxy keeps `Actor.createProxyConfiguration` off the network.
 const ACTOR_PROXY = { useApifyProxy: false, proxyUrls: ['http://actor-default.invalid:8000'] };
 const inputFor = async (params = '', proxy: ProxyOptions = ACTOR_PROXY) => processInput(
     parseParameters(`?query=hello&proxyConfiguration=${encodeURIComponent(JSON.stringify(proxy))}${params}`),
 );
 
 describe('the shared crawlers route each request through its own proxy', () => {
-    // Nothing here is mocked, so this exercises the real dispatching configuration.
     const proxyUrlFor = async (params: string, proxyOptions: ProxyOptions) => {
         const { contentCrawlerOptions } = await inputFor(params);
         const configuration = contentCrawlerOptions.crawlerOptions.proxyConfiguration!;
@@ -42,9 +40,8 @@ describe('the shared crawlers route each request through its own proxy', () => {
         expect(await proxyUrlFor('', { useApifyProxy: false })).toBeUndefined();
     });
 
-    // Resolving no proxy is not the same as using none. BrowserPool launches the browser with the
-    // proxy of whichever request triggered the launch, and a page that resolved none falls back to
-    // it, so without the launch hook this caller goes out through the previous caller's proxy.
+    // Resolving no proxy is not the same as using none: a page that resolved none falls back to
+    // the proxy its browser launched with, which is the previous caller's.
     it('keeps a caller who asked for no proxy off the proxy another caller is using', async () => {
         const seenByOtherCallersProxy: string[] = [];
         const otherCallersProxy = http.createServer((req, res) => {
@@ -67,7 +64,6 @@ describe('the shared crawlers route each request through its own proxy', () => {
             maxRequestRetries: 0,
             // One page at a time, so the proxied request is the one that launches the browser.
             autoscaledPoolOptions: { desiredConcurrency: 1, maxConcurrency: 1 },
-            // Which pages load is not the point: the assertion is what the other caller's proxy saw.
             requestHandler: async () => { recorded.push('loaded'); },
             failedRequestHandler: async () => { recorded.push('failed'); },
         });
@@ -91,9 +87,7 @@ describe('the shared crawlers route each request through its own proxy', () => {
         expect(seenByOtherCallersProxy).toEqual(['http://proxy-probe.invalid/theirs']);
     }, 180_000);
 
-    // Nothing above would catch this: without incognito pages BrowserPool hands a request whichever
-    // browser has capacity and ignores the proxy that request resolved to, so every caller silently
-    // shares the proxy the first browser launched with.
+    // Without incognito pages every caller silently shares the first browser's proxy.
     it('gives the browser crawler a context per page, which is what makes the above work', async () => {
         const { contentCrawlerOptions } = await inputFor('&scrapingTool=browser-playwright');
 

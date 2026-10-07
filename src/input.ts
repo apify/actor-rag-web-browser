@@ -43,38 +43,22 @@ async function getProxyConfiguration(proxyOptions: ProxyOptions) {
 const DEFAULT_PROXY_OPTIONS = ragWebBrowserInputSchema.properties.proxyConfiguration.default as ProxyOptions;
 
 /**
- * The configuration every crawler is built with. It resolves the proxy from the request Crawlee is
- * about to send rather than from the input the crawler was built with, so one crawler serves callers
- * that each asked for a different proxy - which is what keeps the Standby crawler set at three
- * however many callers there are.
- *
- * Crawlee calls this per request for the HTTP crawlers and per page for the browser one. The browser
- * one only honours it because its launch context sets `useIncognitoPages`; without that, BrowserPool
- * hands every request whichever browser is free and they all go through the first browser's proxy.
+ * Resolves the proxy from the request Crawlee is about to send, so one crawler serves callers that
+ * each asked for a different proxy. This is what keeps the Standby crawler set at three.
  */
 const requestProxyConfiguration = new ProxyConfiguration({
     newUrlFunction: async (sessionId, options) => {
-        // Crawlee also resolves a proxy when it launches a browser, with no request in hand. One
-        // browser serves every caller, so it gets none: the launch hook below strips it either way,
-        // and resolving one here would charge a caller's proxy, or fail outright for a user who has
-        // no proxy access at all.
+        // Crawlee also asks when it launches a browser, which serves every caller, so it gets none.
         if (!options?.request) return null;
 
         const userData = options.request.userData as Partial<ContentCrawlerUserData> | undefined;
         const configuration = await getProxyConfiguration(userData?.proxyOptions ?? DEFAULT_PROXY_OPTIONS);
 
-        // Crawlee reads this off the configuration, right after this call, to decide whether to
-        // ignore TLS errors. Keep it in step with whichever configuration served the request.
-        requestProxyConfiguration.isManInTheMiddle = configuration?.isManInTheMiddle ?? false;
-
         return (await configuration?.newUrl(sessionId)) ?? null;
     },
 });
 
-/**
- * Builds the caller's proxy configuration so that an unusable one is reported now, rather than as a
- * run of failed pages later. The crawlers themselves route through `requestProxyConfiguration`.
- */
+/** Reports an unusable proxy now, rather than as a run of failed pages later. */
 async function validateProxyConfiguration(proxyOptions: ProxyOptions, abortOnFailure: boolean) {
     try {
         await getProxyConfiguration(proxyOptions);
@@ -107,8 +91,7 @@ export async function processStandbyInput(originalInput: Partial<Input>) {
 export async function processInput(originalInput: Partial<Input>) {
     const { input, searchCrawlerOptions, contentScraperSettings } = await processInputInternal(originalInput);
 
-    // In Standby this runs once per request, where a proxy problem must fail that request alone. In
-    // Normal mode it is the run's startup, where there is nothing to serve and the run ends.
+    // In Standby a proxy problem must fail one request; in Normal mode there is nothing to serve.
     await validateProxyConfiguration(input.proxyConfiguration, !isActorStandby());
     const contentCrawlerOptions: ContentCrawlerOptions = input.scrapingTool === 'raw-http'
         ? createCheerioCrawlerOptions(input, false)
@@ -298,9 +281,8 @@ function createPlaywrightCrawlerOptions(
             requestHandlerTimeoutSecs: CRAWLER_REQUEST_HANDLER_TIMEOUT_SECS,
             launchContext: {
                 launcher: firefox,
-                // Gives each page its own browser context, which is what lets a page carry the proxy
-                // its request asked for. Without it BrowserPool reuses whichever browser is free and
-                // every request goes through the proxy the first one launched with - silently.
+                // A context per page is what lets a page carry the proxy its request asked for.
+                // Without it every request silently goes through the first browser's proxy.
                 useIncognitoPages: true,
             },
             preNavigationHooks: [
@@ -319,10 +301,8 @@ function createPlaywrightCrawlerOptions(
                     },
                 },
                 retireInactiveBrowserAfterSecs: 60,
-                // BrowserPool launches the browser with the proxy of whichever request happened to
-                // trigger the launch, and an incognito context that asked for no proxy falls back to
-                // it. Unset it so the process holds no caller's proxy: each page carries the one its
-                // request asked for, and a page that asked for none goes direct.
+                // The browser launches with the proxy of whichever request triggered it, and a page
+                // that asked for none would fall back to that one. Hold no caller's proxy here.
                 preLaunchHooks: [
                     (_pageId, launchContext) => {
                         // eslint-disable-next-line no-param-reassign
