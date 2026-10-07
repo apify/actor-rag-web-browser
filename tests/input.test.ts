@@ -1,7 +1,10 @@
 import { log } from 'crawlee';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { warnIfLowMemoryForPlaywright } from '../src/input.js';
+import { processInput, warnIfLowMemoryForPlaywright } from '../src/input.js';
+import { parseParameters } from '../src/utils.js';
+
+process.env.ACTOR_FULL_NAME = 'apify/rag-web-browser';
 
 describe('warnIfLowMemoryForPlaywright', () => {
     afterEach(() => {
@@ -30,5 +33,20 @@ describe('warnIfLowMemoryForPlaywright', () => {
         warning.mockClear();
         warnIfLowMemoryForPlaywright('browser-playwright', undefined);
         expect(warning).not.toHaveBeenCalled();
+    });
+});
+
+describe('the log level', () => {
+    it('ignores a caller\'s debugMode, which would switch logging for everyone sharing the run', async () => {
+        // A custom proxy keeps `Actor.createProxyConfiguration` off the network.
+        const proxy = encodeURIComponent(JSON.stringify({
+            useApifyProxy: false,
+            proxyUrls: ['http://log-level.invalid:8000'],
+        }));
+        log.setLevel(log.LEVELS.INFO);
+
+        await processInput(parseParameters(`?query=hello&debugMode=true&proxyConfiguration=${proxy}`));
+
+        expect(log.getLevel()).toBe(log.LEVELS.INFO);
     });
 });

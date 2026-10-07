@@ -163,19 +163,14 @@ export function sendResponseIfFinished(responseId: string) {
         sendResponseOk(responseId, sortResultsByRank(res));
     }
 }
+
 /**
- * Add timeout to all responses when actor is migrating (source: SuperScraper).
+ * Tells everyone still waiting that this run is moving to another server, so they retry instead of
+ * waiting out their own timeout. Sent at once rather than on a timer, because the announcement is
+ * the last moment we know the process is still here to answer with.
  */
-export const addTimeoutToAllResponses = (timeoutSeconds = 60) => {
-    const migrationErrorMessage = {
-        errorMessage: `Actor had to migrate to another server. Please, retry your request.`,
-    };
-
-    const responseKeys = Object.keys(responseData);
-
-    for (const key of responseKeys) {
-        setTimeout(() => {
-            sendResponseError(key, JSON.stringify(migrationErrorMessage));
-        }, timeoutSeconds * 1000);
+export function failAllResponsesOnMigration() {
+    for (const responseId of [...responseData.keys()]) {
+        sendResponseError(responseId, 'Actor had to migrate to another server. Please, retry your request.');
     }
-};
+}

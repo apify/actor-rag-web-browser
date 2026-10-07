@@ -129,8 +129,6 @@ async function processInputInternal(
         removeCookieWarnings,
     } = input;
 
-    log.setLevel(debugMode ? log.LEVELS.DEBUG : log.LEVELS.INFO);
-
     const contentScraperSettings: ContentScraperSettings = {
         debugMode,
         dynamicContentWaitSecs,

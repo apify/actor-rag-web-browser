@@ -4,7 +4,7 @@ import { log } from 'crawlee';
 import { createAndStartContentCrawler, createAndStartSearchCrawler } from './crawlers.js';
 import { processInput, processStandbyInput } from './input.js';
 import { getMiniActor } from './mini-actors.js';
-import { addTimeoutToAllResponses } from './responses.js';
+import { failAllResponsesOnMigration } from './responses.js';
 import { handleSearchNormalMode } from './search.js';
 import { createServer } from './server.js';
 import { findActorTip, storeActorTip } from './tips.js';
@@ -13,11 +13,13 @@ import { isActorStandby } from './utils.js';
 
 await Actor.init();
 
-Actor.on('migrating', () => {
-    addTimeoutToAllResponses(60);
-});
+Actor.on('migrating', failAllResponsesOnMigration);
 
 const originalInput = await Actor.getInput<Partial<Input>>() ?? {} as Input;
+
+// The log level is process-wide, so it follows the Actor's own input. In Standby `debugMode` arrives
+// per request, where honoring it would switch logging for every other caller sharing the run.
+log.setLevel(originalInput.debugMode ? log.LEVELS.DEBUG : log.LEVELS.INFO);
 
 if (isActorStandby()) {
     log.info('Actor is running in the STANDBY mode.');
