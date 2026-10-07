@@ -118,6 +118,8 @@ export type SearchCrawlerUserData = {
      * confirmed charge: a charge that times out may still have been recorded by the platform.
      */
     isSearchChargeAttempted: boolean;
+    /** The proxy settings of the caller, which the pages found by this search are fetched with. */
+    proxyConfigurationOptions?: ProxyConfigurationOptions;
 };
 
 /**
@@ -139,6 +141,8 @@ export type ContentCrawlerUserData = {
     contentCrawlerKey?: string;
     contentScraperSettings: ContentScraperSettings;
     actorRequestId?: string;
+    /** The proxy settings of the caller, from which the content crawlers pick the proxy of this request. */
+    proxyConfigurationOptions?: ProxyConfigurationOptions;
 };
 
 export type Output = {

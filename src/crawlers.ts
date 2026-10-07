@@ -171,6 +171,7 @@ export async function createAndStartSearchCrawler(
                         request.userData.contentScraperSettings!,
                         request.userData.timeMeasures!,
                         actorRequestId,
+                        request.userData.proxyConfigurationOptions,
                     );
                     await addContentCrawlRequest(r, responseId, request.userData.contentCrawlerKey!);
                 }
@@ -207,7 +208,8 @@ export async function createAndStartContentCrawler(
 ) {
     const { type: crawlerType, crawlerOptions } = contentCrawlerOptions;
 
-    const key = getCrawlerKey(crawlerOptions);
+    // The proxy is picked for each request (see `contentProxyConfiguration`), so it has no say in which crawler is used.
+    const key = getCrawlerKey({ ...crawlerOptions, proxyConfiguration: undefined });
     if (crawlers.has(key)) {
         return { key, crawler: crawlers.get(key) };
     }

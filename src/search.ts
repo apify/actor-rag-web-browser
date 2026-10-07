@@ -49,6 +49,7 @@ function prepareRequest(
             contentScraperSettings,
             null,
             actorRequestId,
+            input.proxyConfiguration,
         );
         addTimeMeasureEvent(req.userData!, 'request-received', Date.now());
         return { req, isUrl: true, responseId };
@@ -70,6 +71,7 @@ function prepareRequest(
             contentScraperSettings,
             null,
             actorRequestId,
+            input.proxyConfiguration,
         )
         : createSearchRequest(
             {
@@ -79,6 +81,7 @@ function prepareRequest(
                 contentCrawlerKey,
                 contentScraperSettings,
                 actorRequestId,
+                proxyConfigurationOptions: input.proxyConfiguration,
             },
             searchCrawlerOptions.proxyConfiguration,
         );

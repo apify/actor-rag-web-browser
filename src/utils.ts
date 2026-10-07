@@ -1,6 +1,7 @@
 import type { IncomingHttpHeaders } from 'node:http';
 import { parse } from 'node:querystring';
 
+import type { ProxyConfigurationOptions } from 'apify';
 import { Actor } from 'apify';
 import type { ProxyConfiguration, RequestOptions } from 'crawlee';
 import { log } from 'crawlee';
@@ -174,6 +175,7 @@ export function createSearchRequest(
             totalPages,
             actorRequestId: userData.actorRequestId,
             isSearchChargeAttempted: userData.isSearchChargeAttempted ?? false,
+            proxyConfigurationOptions: userData.proxyConfigurationOptions,
         },
     };
 }
@@ -188,6 +190,7 @@ export function createRequest(
     contentScraperSettings: ContentScraperSettings,
     timeMeasures: TimeMeasure[] | null = null,
     actorRequestId?: string,
+    proxyConfigurationOptions?: ProxyConfigurationOptions,
 ): RequestOptions<ContentCrawlerUserData> {
     return {
         url: result.url!,
@@ -201,6 +204,7 @@ export function createRequest(
             timeMeasures: timeMeasures ? [...timeMeasures] : [],
             contentScraperSettings,
             actorRequestId,
+            proxyConfigurationOptions,
         },
     };
 }
