@@ -179,6 +179,8 @@ describe('Standby RAG tests', () => {
             '&maxRequestRetries=3&serpMaxRetries=0',
             '&desiredConcurrency=17',
             '&requestTimeoutSecs=299',
+            // The one setting that used to force a crawler of its own.
+            `&proxyConfiguration=${encodeURIComponent('{"useApifyProxy":false}')}`,
         ]) {
             const response = await fetch(`http://localhost:${browserServerPort}/search?query=${baseUrl}/basic${params}`);
 

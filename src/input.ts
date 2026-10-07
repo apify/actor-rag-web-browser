@@ -1,7 +1,7 @@
 import type { ProxyConfigurationOptions } from 'apify';
 import { Actor } from 'apify';
-import type { CheerioCrawlerOptions, ProxyConfiguration } from 'crawlee';
-import { BrowserName, log } from 'crawlee';
+import type { CheerioCrawlerOptions } from 'crawlee';
+import { BrowserName, log, ProxyConfiguration } from 'crawlee';
 import { firefox } from 'playwright';
 
 import ragWebBrowserInputSchema from '../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
@@ -11,6 +11,7 @@ import { blockMediaRequests } from './media.js';
 import { getMiniActor } from './mini-actors.js';
 import type {
     ContentCrawlerOptions,
+    ContentCrawlerUserData,
     ContentScraperSettings,
     Input,
     OutputFormats,
@@ -20,7 +21,7 @@ import type {
     SERPProxyGroup,
     UrlToMarkdownInput,
 } from './types.js';
-import { abortRun } from './utils.js';
+import { abortRun, isActorStandby } from './utils.js';
 
 const proxyConfigurations = new Map<string, Promise<ProxyConfiguration | undefined>>();
 
@@ -39,11 +40,43 @@ async function getProxyConfiguration(proxyOptions: ProxyOptions) {
     return configuration;
 }
 
-async function createContentProxyConfiguration(proxyOptions: ProxyOptions) {
+const DEFAULT_PROXY_OPTIONS = ragWebBrowserInputSchema.properties.proxyConfiguration.default as ProxyOptions;
+
+/**
+ * The configuration every crawler is built with. It resolves the proxy from the request Crawlee is
+ * about to send rather than from the input the crawler was built with, so one crawler serves callers
+ * that each asked for a different proxy - which is what keeps the Standby crawler set at three
+ * however many callers there are.
+ *
+ * Crawlee calls this per request for the HTTP crawlers and per page for the browser one. The browser
+ * one only honours it because its launch context sets `useIncognitoPages`; without that, BrowserPool
+ * hands every request whichever browser is free and they all go through the first browser's proxy.
+ */
+const requestProxyConfiguration = new ProxyConfiguration({
+    newUrlFunction: async (sessionId, options) => {
+        // Crawlee also resolves a proxy when it launches a browser, with no request in hand.
+        const userData = options?.request?.userData as Partial<ContentCrawlerUserData> | undefined;
+        const configuration = await getProxyConfiguration(userData?.proxyOptions ?? DEFAULT_PROXY_OPTIONS);
+
+        // Crawlee reads this off the configuration, right after this call, to decide whether to
+        // ignore TLS errors. Keep it in step with whichever configuration served the request.
+        requestProxyConfiguration.isManInTheMiddle = configuration?.isManInTheMiddle ?? false;
+
+        return (await configuration?.newUrl(sessionId)) ?? null;
+    },
+});
+
+/**
+ * Builds the caller's proxy configuration so that an unusable one is reported now, rather than as a
+ * run of failed pages later. The crawlers themselves route through `requestProxyConfiguration`.
+ */
+async function validateProxyConfiguration(proxyOptions: ProxyOptions, abortOnFailure: boolean) {
     try {
-        return await getProxyConfiguration(proxyOptions);
+        await getProxyConfiguration(proxyOptions);
     } catch (e) {
-        return abortRun(`Cannot use Apify Proxy for scraping the target pages: ${(e as Error).message}`);
+        const message = `Cannot use Apify Proxy for scraping the target pages: ${(e as Error).message}`;
+        if (!abortOnFailure) throw new UserInputError(message);
+        await abortRun(message);
     }
 }
 
@@ -54,10 +87,10 @@ async function createContentProxyConfiguration(proxyOptions: ProxyOptions) {
 export async function processStandbyInput(originalInput: Partial<Input>) {
     const { input, searchCrawlerOptions, contentScraperSettings } = await processInputInternal(originalInput, true);
 
-    const proxy = await createContentProxyConfiguration(input.proxyConfiguration);
+    await validateProxyConfiguration(input.proxyConfiguration, true);
     const contentCrawlerOptions: ContentCrawlerOptions[] = [
-        createPlaywrightCrawlerOptions(input, proxy),
-        createCheerioCrawlerOptions(input, proxy),
+        createPlaywrightCrawlerOptions(input),
+        createCheerioCrawlerOptions(input),
     ];
 
     return { input, searchCrawlerOptions, contentCrawlerOptions, contentScraperSettings };
@@ -69,10 +102,12 @@ export async function processStandbyInput(originalInput: Partial<Input>) {
 export async function processInput(originalInput: Partial<Input>) {
     const { input, searchCrawlerOptions, contentScraperSettings } = await processInputInternal(originalInput);
 
-    const proxy = await createContentProxyConfiguration(input.proxyConfiguration);
+    // In Standby this runs once per request, where a proxy problem must fail that request alone. In
+    // Normal mode it is the run's startup, where there is nothing to serve and the run ends.
+    await validateProxyConfiguration(input.proxyConfiguration, !isActorStandby());
     const contentCrawlerOptions: ContentCrawlerOptions = input.scrapingTool === 'raw-http'
-        ? createCheerioCrawlerOptions(input, proxy, false)
-        : createPlaywrightCrawlerOptions(input, proxy, false);
+        ? createCheerioCrawlerOptions(input, false)
+        : createPlaywrightCrawlerOptions(input, false);
 
     return { input, searchCrawlerOptions, contentCrawlerOptions, contentScraperSettings };
 }
@@ -197,7 +232,7 @@ async function processRagWebBrowserInput(input: Partial<RagWebBrowserInput>, sta
     const searchCrawlerOptions: CheerioCrawlerOptions = {
         keepAlive: standbyInit,
         maxRequestRetries: CRAWLER_MAX_REQUEST_RETRIES,
-        proxyConfiguration: await getProxyConfiguration({ groups: [input.serpProxyGroup], checkAccess: false }),
+        proxyConfiguration: requestProxyConfiguration,
         autoscaledPoolOptions: { desiredConcurrency: 1 },
         persistCookiesPerSession: false,
         sessionPoolOptions: { persistenceOptions: { enable: false } },
@@ -241,7 +276,6 @@ async function processUrlToMarkdownInput(input: Partial<UrlToMarkdownInput>): Pr
 
 function createPlaywrightCrawlerOptions(
     input: Input,
-    proxy: ProxyConfiguration | undefined,
     keepAlive = true,
 ): ContentCrawlerOptions {
     return {
@@ -255,10 +289,14 @@ function createPlaywrightCrawlerOptions(
             persistCookiesPerSession: false,
             sessionPoolOptions: { persistenceOptions: { enable: false } },
             maxRequestRetries: CRAWLER_MAX_REQUEST_RETRIES,
-            proxyConfiguration: proxy,
+            proxyConfiguration: requestProxyConfiguration,
             requestHandlerTimeoutSecs: CRAWLER_REQUEST_HANDLER_TIMEOUT_SECS,
             launchContext: {
                 launcher: firefox,
+                // Gives each page its own browser context, which is what lets a page carry the proxy
+                // its request asked for. Without it BrowserPool reuses whichever browser is free and
+                // every request goes through the proxy the first one launched with - silently.
+                useIncognitoPages: true,
             },
             preNavigationHooks: [
                 async ({ page }) => {
@@ -286,7 +324,6 @@ function createPlaywrightCrawlerOptions(
 
 function createCheerioCrawlerOptions(
     input: Input,
-    proxy: ProxyConfiguration | undefined,
     keepAlive = true,
 ): ContentCrawlerOptions {
     return {
@@ -294,7 +331,7 @@ function createCheerioCrawlerOptions(
         crawlerOptions: {
             keepAlive,
             maxRequestRetries: CRAWLER_MAX_REQUEST_RETRIES,
-            proxyConfiguration: proxy,
+            proxyConfiguration: requestProxyConfiguration,
             requestHandlerTimeoutSecs: CRAWLER_REQUEST_HANDLER_TIMEOUT_SECS,
             persistCookiesPerSession: false,
             sessionPoolOptions: { persistenceOptions: { enable: false } },
