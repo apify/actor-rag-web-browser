@@ -162,12 +162,15 @@ export function createSearchRequest(
     return {
         url: urlSearch,
         uniqueKey: randomId(),
+        // The shared crawler cannot hold this caller's retry count, so the request does.
+        maxRetries: userData.serpMaxRetries,
         userData: {
             maxResults: userData.maxResults,
             timeMeasures: userData.timeMeasures || [],
             query: userData.query,
             contentCrawlerKey: userData.contentCrawlerKey,
             contentScraperSettings: userData.contentScraperSettings,
+            serpMaxRetries: userData.serpMaxRetries,
             responseId: userData.responseId,
             collectedResults,
             currentPage,
@@ -192,6 +195,7 @@ export function createRequest(
     return {
         url: result.url!,
         uniqueKey: randomId(),
+        maxRetries: contentScraperSettings.maxRequestRetries,
         // Media files contain no text to extract, so don't spend any bandwidth on downloading them.
         skipNavigation: isMediaUrl(result.url!),
         userData: {

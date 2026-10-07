@@ -18,6 +18,7 @@ import {
 } from 'crawlee';
 
 import { chargeFetch, chargeSearch } from './charging.js';
+import type { CrawlerKind } from './const.js';
 import { ContentCrawlerTypes, GOOGLE_STANDARD_RESULTS_PER_PAGE } from './const.js';
 import { deduplicateResults, scrapeOrganicResults } from './google-search/google-extractors-urls.js';
 import {
@@ -27,10 +28,17 @@ import {
     TEXT_DOCUMENT_CONTENT_TYPES,
 } from './request-handler.js';
 import { addEmptyResultToResponse, addResultToResponse, sendResponseError, sendResponseIfFinished } from './responses.js';
-import type { ContentCrawlerOptions, ContentCrawlerUserData, Output, SearchCrawlerUserData } from './types.js';
+import type {
+    ContentCrawlerOptions,
+    ContentCrawlerUserData,
+    Output,
+    SearchCrawlerUserData,
+} from './types.js';
 import { addTimeMeasureEvent, createRequest, createSearchRequest } from './utils.js';
 
-const crawlers = new Map<string, CheerioCrawler | PlaywrightCrawler>();
+type Crawler = CheerioCrawler | PlaywrightCrawler;
+
+const crawlers = new Map<CrawlerKind, Promise<Crawler>>();
 const client = new MemoryStorage({ persistStorage: false });
 
 const contentCrawlerHttpClient = new ImpitHttpClient({
@@ -56,26 +64,61 @@ async function getGhosteryBlocker(): Promise<PlaywrightBlocker | undefined> {
     }
 }
 
-export function getCrawlerKey(crawlerOptions: CheerioCrawlerOptions | PlaywrightCrawlerOptions) {
-    return JSON.stringify(crawlerOptions);
+export function getCrawlerCount() {
+    return crawlers.size;
+}
+
+/** Drops a crawler only if it is still the cached one, so a replacement is never evicted. */
+function evict(kind: CrawlerKind, crawlerPromise: Promise<Crawler>) {
+    if (crawlers.get(kind) === crawlerPromise) crawlers.delete(kind);
 }
 
 /**
- * Adds a content crawl request to selected content crawler.
- * Get existing crawler based on crawlerOptions and scraperSettings, if not present -> create new
+ * Caches the promise rather than the crawler, so concurrent requests arriving while one is still
+ * building share it instead of each building their own.
+ */
+async function getOrCreateCrawler(kind: CrawlerKind, startCrawler: boolean, build: () => Promise<Crawler>) {
+    const cached = crawlers.get(kind);
+    if (cached) {
+        return cached;
+    }
+
+    const crawlerPromise = (async () => {
+        log.info(`Creating new ${kind} crawler`);
+        const crawler = await build();
+        if (startCrawler) {
+            crawler.run().then(
+                () => log.warning(`Crawler ${kind} has finished`),
+                (err) => log.error(`Crawler ${kind} failed to run: ${err instanceof Error ? err.message : String(err)}`),
+            ).finally(() => evict(kind, crawlerPromise));
+            log.info(`Crawler ${kind} has started 💪🏼`);
+        }
+        return crawler;
+    })();
+
+    crawlers.set(kind, crawlerPromise);
+    crawlerPromise.catch(() => evict(kind, crawlerPromise));
+    log.info(`Number of crawlers ${crawlers.size}`);
+    return crawlerPromise;
+}
+
+/**
+ * Adds a content crawl request to the content crawler identified by `contentCrawlerKey`.
  */
 export const addContentCrawlRequest = async (
     request: RequestOptions<ContentCrawlerUserData>,
     responseId: string,
-    contentCrawlerKey: string,
+    contentCrawlerKey: CrawlerKind,
 ) => {
-    const crawler = crawlers.get(contentCrawlerKey);
-    const name = crawler instanceof PlaywrightCrawler ? 'playwright' : 'cheerio';
-
-    if (!crawler) {
-        log.error(`Content crawler not found: key ${contentCrawlerKey}`);
+    const crawlerPromise = crawlers.get(contentCrawlerKey);
+    if (!crawlerPromise) {
+        log.error(`Content crawler not found: ${contentCrawlerKey}`);
+        sendResponseError(responseId, 'The content crawler is restarting. Please retry.');
         return;
     }
+
+    const crawler = await crawlerPromise;
+    const name = crawler instanceof PlaywrightCrawler ? 'playwright' : 'cheerio';
     try {
         await crawler.requestQueue!.addRequest(request);
         // create an empty result in search request response
@@ -95,14 +138,9 @@ export async function createAndStartSearchCrawler(
     searchCrawlerOptions: CheerioCrawlerOptions,
     startCrawler = true,
 ) {
-    const key = getCrawlerKey(searchCrawlerOptions);
-    if (crawlers.has(key)) {
-        return { key, crawler: crawlers.get(key) };
-    }
-
-    log.info(`Creating new cheerio crawler with key ${key}`);
-    const crawler = new CheerioCrawler({
-        ...(searchCrawlerOptions as CheerioCrawlerOptions),
+    const key: CrawlerKind = 'search';
+    const crawler = await getOrCreateCrawler(key, startCrawler, async () => new CheerioCrawler({
+        ...searchCrawlerOptions,
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
         requestHandler: async ({ request, $: _$, addRequests }: CheerioCrawlingContext<SearchCrawlerUserData>) => {
             // NOTE: we need to cast this to fix `cheerio` type errors
@@ -182,17 +220,8 @@ export async function createAndStartSearchCrawler(
             const errorResponse = { errorMessage: err.message };
             sendResponseError(request.uniqueKey, JSON.stringify(errorResponse));
         },
-    });
-    if (startCrawler) {
-        crawler.run().then(
-            () => log.warning('Google-search-crawler has finished'),
-            // eslint-disable-next-line @typescript-eslint/no-empty-function
-            () => { },
-        );
-        log.info('Google-search-crawler has started 🫡');
-    }
-    crawlers.set(key, crawler);
-    log.info(`Number of crawlers ${crawlers.size}`);
+    }));
+
     return { key, crawler };
 }
 
@@ -207,26 +236,13 @@ export async function createAndStartContentCrawler(
 ) {
     const { type: crawlerType, crawlerOptions } = contentCrawlerOptions;
 
-    const key = getCrawlerKey(crawlerOptions);
-    if (crawlers.has(key)) {
-        return { key, crawler: crawlers.get(key) };
-    }
+    const crawler = await getOrCreateCrawler(crawlerType, startCrawler, async () => (
+        crawlerType === ContentCrawlerTypes.PLAYWRIGHT
+            ? createPlaywrightContentCrawler(crawlerOptions, crawlerType)
+            : createCheerioContentCrawler(crawlerOptions, crawlerType)
+    ));
 
-    const crawler = crawlerType === 'playwright'
-        ? await createPlaywrightContentCrawler(crawlerOptions, key)
-        : await createCheerioContentCrawler(crawlerOptions, key);
-
-    if (startCrawler) {
-        crawler.run().then(
-            () => log.warning(`Crawler ${crawlerType} has finished`),
-            // eslint-disable-next-line @typescript-eslint/no-empty-function
-            () => { },
-        );
-        log.info(`Crawler ${crawlerType} has started 💪🏼`);
-    }
-    crawlers.set(key, crawler);
-    log.info(`Number of crawlers ${crawlers.size}`);
-    return { key, crawler };
+    return { key: crawlerType, crawler };
 }
 
 /**
@@ -246,9 +262,9 @@ async function chargeFetchOnce(request: Request<ContentCrawlerUserData>, crawler
 /**
  * Hands a finished page to the response it belongs to.
  *
- * Only called once the page has been charged for: a response completes as soon as none of its pages are
- * pending any more, so registering a page earlier would let a sibling finishing first send the response
- * while this page's charge is still in flight - and the platform refuses a charge whose request is gone.
+ * Only called once the page has been charged for: a response completes as soon as none of its pages
+ * are pending, so registering earlier would let a sibling send the response while this page's charge
+ * is still in flight, and the platform refuses a charge whose request is gone.
  */
 function completeContentRequest(request: Request<ContentCrawlerUserData>, result: Output) {
     const { responseId } = request.userData;
@@ -261,7 +277,6 @@ async function createPlaywrightContentCrawler(
     crawlerOptions: PlaywrightCrawlerOptions,
     key: string,
 ): Promise<PlaywrightCrawler> {
-    log.info(`Creating new playwright crawler with key ${key}`);
     const blocker = await getGhosteryBlocker();
     return new PlaywrightCrawler({
         ...crawlerOptions,
@@ -284,7 +299,6 @@ async function createCheerioContentCrawler(
     crawlerOptions: CheerioCrawlerOptions,
     key: string,
 ): Promise<CheerioCrawler> {
-    log.info(`Creating new cheerio crawler with key ${key}`);
     return new CheerioCrawler({
         ...crawlerOptions,
         keepAlive: crawlerOptions.keepAlive,
@@ -305,20 +319,21 @@ async function createCheerioContentCrawler(
 }
 
 /**
- * Adds a search request to the Google search crawler.
+ * Adds a search request to the search crawler identified by `searchCrawlerKey`.
  * Create a response for the request and set the desired number of results (maxResults).
  */
 export const addSearchRequest = async (
     request: RequestOptions<ContentCrawlerUserData>,
-    searchCrawlerOptions: CheerioCrawlerOptions,
+    searchCrawlerKey: CrawlerKind,
 ) => {
-    const key = getCrawlerKey(searchCrawlerOptions);
-    const crawler = crawlers.get(key);
-
-    if (!crawler) {
-        log.error(`Cheerio crawler not found: key ${key}`);
+    const crawlerPromise = crawlers.get(searchCrawlerKey);
+    if (!crawlerPromise) {
+        log.error(`Search crawler not found: ${searchCrawlerKey}`);
+        sendResponseError(request.userData!.responseId, 'The search crawler is restarting. Please retry.');
         return;
     }
+
+    const crawler = await crawlerPromise;
     addTimeMeasureEvent(request.userData!, 'before-cheerio-queue-add');
     await crawler.requestQueue!.addRequest(request);
     log.info(`Added request to cheerio-google-search-crawler: ${request.url}`);
