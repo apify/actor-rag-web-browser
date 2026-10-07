@@ -54,8 +54,13 @@ const DEFAULT_PROXY_OPTIONS = ragWebBrowserInputSchema.properties.proxyConfigura
  */
 const requestProxyConfiguration = new ProxyConfiguration({
     newUrlFunction: async (sessionId, options) => {
-        // Crawlee also resolves a proxy when it launches a browser, with no request in hand.
-        const userData = options?.request?.userData as Partial<ContentCrawlerUserData> | undefined;
+        // Crawlee also resolves a proxy when it launches a browser, with no request in hand. One
+        // browser serves every caller, so it gets none: the launch hook below strips it either way,
+        // and resolving one here would charge a caller's proxy, or fail outright for a user who has
+        // no proxy access at all.
+        if (!options?.request) return null;
+
+        const userData = options.request.userData as Partial<ContentCrawlerUserData> | undefined;
         const configuration = await getProxyConfiguration(userData?.proxyOptions ?? DEFAULT_PROXY_OPTIONS);
 
         // Crawlee reads this off the configuration, right after this call, to decide whether to
@@ -314,6 +319,16 @@ function createPlaywrightCrawlerOptions(
                     },
                 },
                 retireInactiveBrowserAfterSecs: 60,
+                // BrowserPool launches the browser with the proxy of whichever request happened to
+                // trigger the launch, and an incognito context that asked for no proxy falls back to
+                // it. Unset it so the process holds no caller's proxy: each page carries the one its
+                // request asked for, and a page that asked for none goes direct.
+                preLaunchHooks: [
+                    (_pageId, launchContext) => {
+                        // eslint-disable-next-line no-param-reassign
+                        launchContext.proxyUrl = undefined;
+                    },
+                ],
             },
             autoscaledPoolOptions: {
                 desiredConcurrency: input.desiredConcurrency,

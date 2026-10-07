@@ -1,5 +1,10 @@
-import { Actor } from 'apify';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
+
+import { MemoryStorage } from '@crawlee/memory-storage';
+import { Actor, RequestQueue } from 'apify';
 import type { PlaywrightCrawlerOptions } from 'crawlee';
+import { PlaywrightCrawler } from 'crawlee';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ContentCrawlerTypes } from '../src/const.js';
@@ -36,6 +41,55 @@ describe('the shared crawlers route each request through its own proxy', () => {
     it('sends a request that asked for no proxy without one', async () => {
         expect(await proxyUrlFor('', { useApifyProxy: false })).toBeUndefined();
     });
+
+    // Resolving no proxy is not the same as using none. BrowserPool launches the browser with the
+    // proxy of whichever request triggered the launch, and a page that resolved none falls back to
+    // it, so without the launch hook this caller goes out through the previous caller's proxy.
+    it('keeps a caller who asked for no proxy off the proxy another caller is using', async () => {
+        const seenByOtherCallersProxy: string[] = [];
+        const otherCallersProxy = http.createServer((req, res) => {
+            seenByOtherCallersProxy.push(req.url!);
+            res.writeHead(200, { 'content-type': 'text/html' });
+            res.end('<html><body><p>ok</p></body></html>');
+        });
+        await new Promise<void>((resolve) => { otherCallersProxy.listen(0, '127.0.0.1', resolve); });
+        const proxyUrl = `http://127.0.0.1:${(otherCallersProxy.address() as AddressInfo).port}`;
+
+        const recorded: string[] = [];
+        const { contentCrawlerOptions } = await inputFor('&scrapingTool=browser-playwright');
+        const requestQueue = await RequestQueue.open('proxy-probe-queue', {
+            storageClient: new MemoryStorage({ persistStorage: false }),
+        });
+        const crawler = new PlaywrightCrawler({
+            ...contentCrawlerOptions.crawlerOptions as PlaywrightCrawlerOptions,
+            requestQueue,
+            keepAlive: false,
+            maxRequestRetries: 0,
+            // One page at a time, so the proxied request is the one that launches the browser.
+            autoscaledPoolOptions: { desiredConcurrency: 1, maxConcurrency: 1 },
+            // Which pages load is not the point: the assertion is what the other caller's proxy saw.
+            requestHandler: async () => { recorded.push('loaded'); },
+            failedRequestHandler: async () => { recorded.push('failed'); },
+        });
+
+        try {
+            // The hostname never resolves, so a page can only load through a proxy.
+            await requestQueue.addRequest({
+                url: 'http://proxy-probe.invalid/theirs',
+                userData: { proxyOptions: { useApifyProxy: false, proxyUrls: [proxyUrl] } },
+            });
+            await requestQueue.addRequest({
+                url: 'http://proxy-probe.invalid/mine',
+                userData: { proxyOptions: { useApifyProxy: false } },
+            });
+            await crawler.run();
+        } finally {
+            otherCallersProxy.close();
+        }
+
+        expect(recorded).toHaveLength(2);
+        expect(seenByOtherCallersProxy).toEqual(['http://proxy-probe.invalid/theirs']);
+    }, 180_000);
 
     // Nothing above would catch this: without incognito pages BrowserPool hands a request whichever
     // browser has capacity and ignores the proxy that request resolved to, so every caller silently
