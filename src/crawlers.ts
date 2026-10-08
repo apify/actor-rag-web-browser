@@ -217,8 +217,7 @@ export async function createAndStartSearchCrawler(
         failedRequestHandler: async ({ request }, err) => {
             addTimeMeasureEvent(request.userData!, 'cheerio-failed-request');
             log.error(`Google-search-crawler failed to process request ${request.url}, error ${err.message}`);
-            const errorResponse = { errorMessage: err.message };
-            sendResponseError(request.uniqueKey, JSON.stringify(errorResponse));
+            sendResponseError(request.userData!.responseId, err.message);
         },
     }));
 

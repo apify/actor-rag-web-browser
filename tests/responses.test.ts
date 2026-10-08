@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ContentCrawlerStatus } from '../src/const.js';
+import { createAndStartSearchCrawler } from '../src/crawlers.js';
 import {
     addEmptyResultToResponse,
     addResultToResponse,
@@ -31,5 +32,23 @@ describe('a run that migrates to another server', () => {
         failAllResponsesOnMigration();
 
         await expect(waiting).resolves.toMatchObject([{ metadata: { url } }]);
+    });
+});
+
+describe('a search that fails', () => {
+    it('tells the caller why, instead of leaving them to wait out their own timeout', async () => {
+        const waiting = createResponsePromise('search-failed', 300);
+        const { crawler } = await createAndStartSearchCrawler({}, false);
+        const { failedRequestHandler } = crawler as unknown as {
+            failedRequestHandler: (context: unknown, err: Error) => Promise<void>;
+        };
+
+        await failedRequestHandler(
+            // The request's own key is not the response's: the response is found by `responseId`.
+            { request: { url: 'https://www.google.com/search?q=x', uniqueKey: 'some-other-key', userData: { responseId: 'search-failed' } } },
+            new Error('Google refused the request'),
+        );
+
+        await expect(waiting).rejects.toThrow('Google refused the request');
     });
 });
