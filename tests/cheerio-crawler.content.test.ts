@@ -75,6 +75,7 @@ describe('Cheerio Crawler Content Tests', () => {
                 dynamicContentWaitSecs: 20,
                 maxRequestRetries: 1,
             },
+            { useApifyProxy: false },
             [],
         );
 

@@ -109,6 +109,9 @@ export type SearchCrawlerUserData = {
     responseId: string;
     contentScraperSettings: ContentScraperSettings;
     serpMaxRetries: number;
+    proxyOptions: ProxyOptions;
+    /** For the content requests this search spawns, not for the search itself. */
+    contentProxyOptions: ProxyOptions;
     // Pagination tracking
     /** Results accumulated across SERP pages, passed forward for merging */
     collectedResults: OrganicResult[];
@@ -143,6 +146,7 @@ export type ContentCrawlerUserData = {
     searchResult?: OrganicResult;
     contentCrawlerKey?: CrawlerKind;
     contentScraperSettings: ContentScraperSettings;
+    proxyOptions: ProxyOptions;
     actorRequestId?: string;
 };
 

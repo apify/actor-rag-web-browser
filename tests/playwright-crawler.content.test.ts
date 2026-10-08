@@ -78,6 +78,7 @@ describe('Playwright Crawler Content Tests', () => {
                 maxRequestRetries: 1,
                 ...settings,
             },
+            { useApifyProxy: false },
             [],
         );
 
