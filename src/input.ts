@@ -5,7 +5,7 @@ import { BrowserName, log } from 'crawlee';
 import { firefox } from 'playwright';
 
 import ragWebBrowserInputSchema from '../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
-import { ContentCrawlerTypes } from './const.js';
+import { ContentCrawlerTypes, CRAWLER_MAX_REQUEST_RETRIES, CRAWLER_REQUEST_HANDLER_TIMEOUT_SECS } from './const.js';
 import { UserInputError } from './errors.js';
 import { blockMediaRequests } from './media.js';
 import { getMiniActor } from './mini-actors.js';
@@ -14,12 +14,38 @@ import type {
     ContentScraperSettings,
     Input,
     OutputFormats,
+    ProxyOptions,
     RagWebBrowserInput,
     ScrapingTool,
     SERPProxyGroup,
     UrlToMarkdownInput,
 } from './types.js';
 import { abortRun } from './utils.js';
+
+const proxyConfigurations = new Map<string, Promise<ProxyConfiguration | undefined>>();
+
+/** Cached because `Actor.createProxyConfiguration` checks proxy access over the network. */
+async function getProxyConfiguration(proxyOptions: ProxyOptions) {
+    const key = JSON.stringify(proxyOptions);
+    let configuration = proxyConfigurations.get(key);
+
+    if (!configuration) {
+        configuration = Actor.createProxyConfiguration(proxyOptions);
+        proxyConfigurations.set(key, configuration);
+        // A rejected configuration must not be served to the next caller.
+        configuration.catch(() => proxyConfigurations.delete(key));
+    }
+
+    return configuration;
+}
+
+async function createContentProxyConfiguration(proxyOptions: ProxyOptions) {
+    try {
+        return await getProxyConfiguration(proxyOptions);
+    } catch (e) {
+        return abortRun(`Cannot use Apify Proxy for scraping the target pages: ${(e as Error).message}`);
+    }
+}
 
 /**
  * Processes the input and returns an array of crawler settings. This is ideal for startup of STANDBY mode
@@ -90,6 +116,7 @@ async function processInputInternal(
         outputFormats,
         removeCookieWarnings,
         removeElementsCssSelector,
+        maxRequestRetries: input.maxRequestRetries,
     };
 
     return { input, searchCrawlerOptions, contentScraperSettings };
@@ -167,12 +194,13 @@ async function processRagWebBrowserInput(input: Partial<RagWebBrowserInput>, sta
         input.dynamicContentWaitSecs = Math.round(input.requestTimeoutSecs / 2);
     }
 
-    const proxySearch = await Actor.createProxyConfiguration({ groups: [input.serpProxyGroup], checkAccess: false });
     const searchCrawlerOptions: CheerioCrawlerOptions = {
         keepAlive: standbyInit,
-        maxRequestRetries: input.serpMaxRetries,
-        proxyConfiguration: proxySearch,
+        maxRequestRetries: CRAWLER_MAX_REQUEST_RETRIES,
+        proxyConfiguration: await getProxyConfiguration({ groups: [input.serpProxyGroup], checkAccess: false }),
         autoscaledPoolOptions: { desiredConcurrency: 1 },
+        persistCookiesPerSession: false,
+        sessionPoolOptions: { persistenceOptions: { enable: false } },
     };
     const validatedRagBrowserInput = validateAndFillInput(input) as RagWebBrowserInput;
     return {
@@ -211,29 +239,24 @@ async function processUrlToMarkdownInput(input: Partial<UrlToMarkdownInput>): Pr
     return validatedInput;
 }
 
-async function createContentProxyConfiguration(proxyConfiguration: ProxyConfigurationOptions) {
-    try {
-        return await Actor.createProxyConfiguration(proxyConfiguration);
-    } catch (e) {
-        return abortRun(`Cannot use Apify Proxy for scraping the target pages: ${(e as Error).message}`);
-    }
-}
-
 function createPlaywrightCrawlerOptions(
     input: Input,
     proxy: ProxyConfiguration | undefined,
     keepAlive = true,
 ): ContentCrawlerOptions {
-    const { maxRequestRetries, desiredConcurrency } = input;
-
     return {
         type: ContentCrawlerTypes.PLAYWRIGHT,
         crawlerOptions: {
             headless: true,
             keepAlive,
-            maxRequestRetries,
+            // The session pool is shared by every caller, so without these two one caller's cookies
+            // ride along with another's request. The pool itself stays: Crawlee gates its 401/403/429
+            // handling on it, and a blocked page must fail rather than be charged for.
+            persistCookiesPerSession: false,
+            sessionPoolOptions: { persistenceOptions: { enable: false } },
+            maxRequestRetries: CRAWLER_MAX_REQUEST_RETRIES,
             proxyConfiguration: proxy,
-            requestHandlerTimeoutSecs: input.requestTimeoutSecs,
+            requestHandlerTimeoutSecs: CRAWLER_REQUEST_HANDLER_TIMEOUT_SECS,
             launchContext: {
                 launcher: firefox,
             },
@@ -255,7 +278,7 @@ function createPlaywrightCrawlerOptions(
                 retireInactiveBrowserAfterSecs: 60,
             },
             autoscaledPoolOptions: {
-                desiredConcurrency,
+                desiredConcurrency: input.desiredConcurrency,
             },
         },
     };
@@ -266,17 +289,17 @@ function createCheerioCrawlerOptions(
     proxy: ProxyConfiguration | undefined,
     keepAlive = true,
 ): ContentCrawlerOptions {
-    const { maxRequestRetries, desiredConcurrency } = input;
-
     return {
         type: ContentCrawlerTypes.CHEERIO,
         crawlerOptions: {
             keepAlive,
-            maxRequestRetries,
+            maxRequestRetries: CRAWLER_MAX_REQUEST_RETRIES,
             proxyConfiguration: proxy,
-            requestHandlerTimeoutSecs: input.requestTimeoutSecs,
+            requestHandlerTimeoutSecs: CRAWLER_REQUEST_HANDLER_TIMEOUT_SECS,
+            persistCookiesPerSession: false,
+            sessionPoolOptions: { persistenceOptions: { enable: false } },
             autoscaledPoolOptions: {
-                desiredConcurrency,
+                desiredConcurrency: input.desiredConcurrency,
             },
         },
     };

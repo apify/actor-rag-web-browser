@@ -9,7 +9,7 @@ import {
 } from 'vitest';
 
 import { ContentCrawlerStatus } from '../src/const.js';
-import { createAndStartContentCrawler, createAndStartSearchCrawler } from '../src/crawlers.js';
+import { createAndStartContentCrawler, createAndStartSearchCrawler, getCrawlerCount } from '../src/crawlers.js';
 import { processStandbyInput } from '../src/input.js';
 import { createServer } from '../src/server.js';
 import {
@@ -168,6 +168,23 @@ describe('Standby RAG tests', () => {
         expect(response.status).toBe(200);
         expect(data[0].metadata.url).toBe(`${baseUrl}/redirected/page`);
         expect(data[0].markdown).toContain(`[relative link](${baseUrl}/redirected/article)`);
+    });
+
+    it('serves every combination of per-request settings without starting another crawler', async () => {
+        expect(getCrawlerCount()).toBe(3);
+
+        for (const params of [
+            '&debugMode=true',
+            '&requestTimeoutSecs=5',
+            '&maxRequestRetries=3&serpMaxRetries=0',
+            '&desiredConcurrency=17',
+            '&requestTimeoutSecs=299',
+        ]) {
+            const response = await fetch(`http://localhost:${browserServerPort}/search?query=${baseUrl}/basic${params}`);
+
+            expect(response.status, params).toBe(200);
+            expect(getCrawlerCount(), params).toBe(3);
+        }
     });
 
     it('standby request playwright does not download media files of the page', async () => {

@@ -3,6 +3,7 @@ import type { Server } from 'node:http';
 import type { CheerioCrawlerOptions } from 'crawlee';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { CrawlerKind } from '../src/const.js';
 import { ContentCrawlerStatus, ContentCrawlerTypes } from '../src/const.js';
 import {
     addContentCrawlRequest,
@@ -13,7 +14,7 @@ import {
 import { processStandbyInput } from '../src/input.js';
 import { createResponsePromise } from '../src/responses.js';
 import { createServer } from '../src/server.js';
-import type { ContentScraperSettings, SearchCrawlerUserData } from '../src/types.js';
+import type { SearchCrawlerUserData } from '../src/types.js';
 import { createRequest, createSearchRequest } from '../src/utils.js';
 import { MARKDOWN_DOCUMENT, startTestServer, stopTestServer } from './helpers/server.js';
 
@@ -31,9 +32,10 @@ describe('Charging from standby requests', () => {
         maxRequestRetries: 0,
         autoscaledPoolOptions: { desiredConcurrency: 1 },
     };
+    let searchCrawlerKey: CrawlerKind;
     let searchCrawler: Awaited<ReturnType<typeof createAndStartSearchCrawler>>['crawler'];
     let contentCrawler: Awaited<ReturnType<typeof createAndStartContentCrawler>>['crawler'];
-    let contentCrawlerKey: string;
+    let contentCrawlerKey: CrawlerKind;
     let standbyServer: Server;
     const standbyServerPort = 3001;
     const standbyUrl = `http://localhost:${standbyServerPort}`;
@@ -55,6 +57,7 @@ describe('Charging from standby requests', () => {
             })),
         ]);
         searchCrawler = search.crawler;
+        searchCrawlerKey = search.key;
 
         const cheerioCrawler = contentCrawlers.find(({ type }) => type === ContentCrawlerTypes.CHEERIO)!;
         contentCrawler = cheerioCrawler.crawler;
@@ -150,7 +153,13 @@ describe('Charging from standby requests', () => {
                 'hello world',
                 { url: `${baseUrl}${path}`, title: 'Test Page' },
                 responseId,
-                { debugMode: false, dynamicContentWaitSecs: 0, maxHtmlCharsToProcess: 1e6, outputFormats: ['markdown'] } as ContentScraperSettings,
+                {
+                    debugMode: false,
+                    dynamicContentWaitSecs: 0,
+                    maxHtmlCharsToProcess: 1e6,
+                    outputFormats: ['markdown'],
+                    maxRequestRetries: 0,
+                },
                 null,
                 'request123',
             );
@@ -208,12 +217,14 @@ describe('Charging from standby requests', () => {
                 dynamicContentWaitSecs: 0,
                 maxHtmlCharsToProcess: 1e6,
                 outputFormats: ['markdown'],
+                maxRequestRetries: 0,
             },
+            serpMaxRetries: 0,
             actorRequestId: 'request123',
             ...userData,
         }, undefined);
         request.url = `${baseUrl}${path}`;
-        await addSearchRequest(request, searchCrawlerOptions);
+        await addSearchRequest(request, searchCrawlerKey);
         return request.uniqueKey!;
     }
 
