@@ -165,9 +165,8 @@ export function sendResponseIfFinished(responseId: string) {
 }
 
 /**
- * Tells everyone still waiting that this run is moving to another server, so they retry instead of
- * waiting out their own timeout. Sent at once rather than on a timer, because the announcement is
- * the last moment we know the process is still here to answer with.
+ * Tells everyone still waiting to retry elsewhere. Sent at once rather than on a timer, because the
+ * announcement is the last moment we know the process is still here to answer with.
  */
 export function failAllResponsesOnMigration() {
     for (const responseId of [...responseData.keys()]) {

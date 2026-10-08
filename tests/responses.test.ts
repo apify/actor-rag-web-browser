@@ -17,8 +17,7 @@ describe('a run that migrates to another server', () => {
         await expect(waiting).rejects.toThrow('Actor had to migrate to another server. Please, retry your request.');
     });
 
-    // This is what makes it safe to answer the moment the migration is announced, instead of giving
-    // the crawl a grace period the process may not live long enough to honour.
+    // This is what makes it safe to answer at once instead of giving the crawl a grace period.
     it('still returns the results a caller already has', async () => {
         const waiting = createResponsePromise('one-page-finished', 300);
         const url = 'https://example.com/finished';

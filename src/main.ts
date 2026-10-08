@@ -17,8 +17,7 @@ Actor.on('migrating', failAllResponsesOnMigration);
 
 const originalInput = await Actor.getInput<Partial<Input>>() ?? {} as Input;
 
-// The log level is process-wide, so it follows the Actor's own input. In Standby `debugMode` arrives
-// per request, where honoring it would switch logging for every other caller sharing the run.
+// Process-wide, so it follows the run's input: a caller's `debugMode` must not reach other callers.
 log.setLevel(originalInput.debugMode ? log.LEVELS.DEBUG : log.LEVELS.INFO);
 
 if (isActorStandby()) {

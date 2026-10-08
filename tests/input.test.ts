@@ -1,3 +1,4 @@
+import { Actor } from 'apify';
 import { log } from 'crawlee';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -5,6 +6,12 @@ import { processInput, warnIfLowMemoryForPlaywright } from '../src/input.js';
 import { parseParameters } from '../src/utils.js';
 
 process.env.ACTOR_FULL_NAME = 'apify/rag-web-browser';
+
+// A custom proxy keeps `Actor.createProxyConfiguration` off the network.
+const CALLER_PROXY = encodeURIComponent(JSON.stringify({
+    useApifyProxy: false,
+    proxyUrls: ['http://caller.invalid:8000'],
+}));
 
 describe('warnIfLowMemoryForPlaywright', () => {
     afterEach(() => {
@@ -38,15 +45,26 @@ describe('warnIfLowMemoryForPlaywright', () => {
 
 describe('the log level', () => {
     it('ignores a caller\'s debugMode, which would switch logging for everyone sharing the run', async () => {
-        // A custom proxy keeps `Actor.createProxyConfiguration` off the network.
-        const proxy = encodeURIComponent(JSON.stringify({
-            useApifyProxy: false,
-            proxyUrls: ['http://log-level.invalid:8000'],
-        }));
         log.setLevel(log.LEVELS.INFO);
 
-        await processInput(parseParameters(`?query=hello&debugMode=true&proxyConfiguration=${proxy}`));
+        await processInput(parseParameters(`?query=hello&debugMode=true&proxyConfiguration=${CALLER_PROXY}`));
 
         expect(log.getLevel()).toBe(log.LEVELS.INFO);
+    });
+});
+
+describe('the shared crawler pool', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('is sized by the run, not by whichever caller happens to build it', async () => {
+        vi.spyOn(Actor, 'getEnv').mockReturnValue({ metaOrigin: 'STANDBY' } as never);
+
+        const { contentCrawlerOptions } = await processInput(
+            parseParameters(`?query=hello&desiredConcurrency=17&proxyConfiguration=${CALLER_PROXY}`),
+        );
+
+        expect(contentCrawlerOptions.crawlerOptions.autoscaledPoolOptions?.desiredConcurrency).toBe(5);
     });
 });
