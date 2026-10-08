@@ -42,6 +42,8 @@ async function getProxyConfiguration(proxyOptions: ProxyOptions) {
 
 const DEFAULT_PROXY_OPTIONS = ragWebBrowserInputSchema.properties.proxyConfiguration.default as ProxyOptions;
 
+let runDesiredConcurrency = ragWebBrowserInputSchema.properties.desiredConcurrency.default;
+
 /**
  * Resolves the proxy from the request Crawlee is about to send, so one crawler serves callers that
  * each asked for a different proxy. This is what keeps the Standby crawler set at three.
@@ -76,6 +78,7 @@ async function validateProxyConfiguration(proxyOptions: ProxyOptions, abortOnFai
 export async function processStandbyInput(originalInput: Partial<Input>) {
     const { input, searchCrawlerOptions, contentScraperSettings } = await processInputInternal(originalInput, true);
 
+    runDesiredConcurrency = input.desiredConcurrency;
     await validateProxyConfiguration(input.proxyConfiguration, true);
     const contentCrawlerOptions: ContentCrawlerOptions[] = [
         createPlaywrightCrawlerOptions(input),
@@ -93,6 +96,11 @@ export async function processInput(originalInput: Partial<Input>) {
 
     // In Standby a proxy problem must fail one request; in Normal mode there is nothing to serve.
     await validateProxyConfiguration(input.proxyConfiguration, !isActorStandby());
+
+    // A Standby request builds these options whenever no crawler is cached yet, so whichever caller
+    // got there first would size the pool every later caller shares. The run sizes it instead.
+    if (isActorStandby()) input.desiredConcurrency = runDesiredConcurrency;
+
     const contentCrawlerOptions: ContentCrawlerOptions = input.scrapingTool === 'raw-http'
         ? createCheerioCrawlerOptions(input, false)
         : createPlaywrightCrawlerOptions(input, false);
@@ -128,8 +136,6 @@ async function processInputInternal(
         htmlTransformer,
         removeCookieWarnings,
     } = input;
-
-    log.setLevel(debugMode ? log.LEVELS.DEBUG : log.LEVELS.INFO);
 
     const contentScraperSettings: ContentScraperSettings = {
         debugMode,
