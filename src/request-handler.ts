@@ -275,8 +275,9 @@ async function handleTextDocument(
         query: request.userData.query,
         text: settings.outputFormats.includes('text') ? text : undefined,
         markdown: settings.outputFormats.includes('markdown') ? text : undefined,
-        // The document has no HTML to return.
+        // The document has no HTML to return, and no HTML links.
         html: settings.outputFormats.includes('html') ? null : undefined,
+        links: settings.outputFormats.includes('links') ? [] : undefined,
     };
 
     addTimeMeasureEvent(request.userData, `${crawlerType}-before-response-send`);

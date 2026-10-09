@@ -86,8 +86,11 @@ describe('Standby RAG tests', () => {
     // Documents such as agents.md or llms.txt, which AI agents read instructions from, need no conversion.
     // Crawlee's HTTP crawler would reject them, and a browser shows them as plain text, unlike a web page.
     describe.each(['raw-http', 'browser-playwright'])('Markdown and plain text documents with %s', (tool) => {
-        async function fetchDocument(path: string) {
-            const query = `query=${baseUrl}${path}&scrapingTool=${tool}&outputFormats=markdown,text`;
+        // Each fetch gets its own URL: a browser revalidates a repeated one and gets a 304 without a Content-Type.
+        let fetchCount = 0;
+        async function fetchDocument(path: string, outputFormats = ['markdown', 'text']) {
+            const documentUrl = `${baseUrl}${path}?fetch=${fetchCount++}`;
+            const query = new URLSearchParams({ query: documentUrl, scrapingTool: tool, outputFormats: JSON.stringify(outputFormats) });
             const response = await fetch(`http://localhost:${browserServerPort}/search?${query}`);
             expect(response.status).toBe(200);
             const [result] = await response.json();
@@ -100,6 +103,7 @@ describe('Standby RAG tests', () => {
             expect(result.crawl.requestStatus).toBe(ContentCrawlerStatus.HANDLED);
             expect(result.markdown).toBe(MARKDOWN_DOCUMENT);
             expect(result.text).toBe(MARKDOWN_DOCUMENT);
+            expect(result.links).toBeUndefined();
         });
 
         it('returns a plain text document unchanged', async () => {
@@ -107,6 +111,18 @@ describe('Standby RAG tests', () => {
 
             expect(result.crawl.requestStatus).toBe(ContentCrawlerStatus.HANDLED);
             expect(result.markdown).toBe(PLAIN_TEXT_DOCUMENT);
+            expect(result.links).toBeUndefined();
+        });
+
+        // A document has no HTML links to extract.
+        it.each([
+            ['/agents.md', MARKDOWN_DOCUMENT],
+            ['/llms.txt', PLAIN_TEXT_DOCUMENT],
+        ])('returns an empty `links` array for %s when `links` is selected', async (path, document) => {
+            const result = await fetchDocument(path, ['markdown', 'links']);
+
+            expect(result.links).toEqual([]);
+            expect(result.markdown).toBe(document);
         });
     });
 

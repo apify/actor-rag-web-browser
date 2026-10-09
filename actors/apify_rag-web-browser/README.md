@@ -232,7 +232,8 @@ Media files carry no text for the LLM, so the Actor never downloads them:
 
 Files that are Markdown or plain text already, e.g. `agents.md` or `llms.txt`, are recognized by their content type
 (`text/markdown` or `text/plain`) and returned unchanged in `markdown` and `text`, with either scraping tool. Their
-relative links are therefore not converted to absolute URLs.
+relative links are therefore not converted to absolute URLs. As they contain no HTML, `html` is `null` and `links` is
+an empty array for them, when these output formats are selected.
 
 ### Links
 
