@@ -27,7 +27,13 @@ import {
     requestHandlerPlaywright,
     TEXT_DOCUMENT_CONTENT_TYPES,
 } from './request-handler.js';
-import { addEmptyResultToResponse, addResultToResponse, sendResponseError, sendResponseIfFinished } from './responses.js';
+import {
+    addEmptyResultToResponse,
+    addResultToResponse,
+    responseData,
+    sendResponseError,
+    sendResponseIfFinished,
+} from './responses.js';
 import type {
     ContentCrawlerOptions,
     ContentCrawlerUserData,
@@ -157,10 +163,16 @@ export async function createAndStartSearchCrawler(
             // refuses stays free - but before anything is enqueued, or the response could beat the charge
             // and invalidate the caller's request ID. The flag rides along with the request, so a retry
             // of this handler cannot charge the query twice.
+            // The caller can be gone by now: timed out, failed, or the run is moving.
+            if (!responseData.has(request.userData.responseId)) return;
+
             if (organicResults.length > 0 && !request.userData.isSearchChargeAttempted) {
                 request.userData.isSearchChargeAttempted = true;
                 await chargeSearch({ actorRequestId, idempotencyKey: request.uniqueKey });
             }
+
+            // The charge is awaited, so they can have gone during it.
+            if (!responseData.has(request.userData.responseId)) return;
 
             // Merge with previously collected results and deduplicate
             const allResults = [...collectedResults, ...organicResults];

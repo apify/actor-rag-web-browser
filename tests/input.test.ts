@@ -2,7 +2,7 @@ import { Actor } from 'apify';
 import { log } from 'crawlee';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { processInput, warnIfLowMemoryForPlaywright } from '../src/input.js';
+import { processInput, processStandbyInput, warnIfLowMemoryForPlaywright } from '../src/input.js';
 import { parseParameters } from '../src/utils.js';
 
 process.env.ACTOR_FULL_NAME = 'apify/rag-web-browser';
@@ -60,11 +60,12 @@ describe('the shared crawler pool', () => {
 
     it('is sized by the run, not by whichever caller happens to build it', async () => {
         vi.spyOn(Actor, 'getEnv').mockReturnValue({ metaOrigin: 'STANDBY' } as never);
+        await processStandbyInput(parseParameters(`?query=hello&desiredConcurrency=23&proxyConfiguration=${CALLER_PROXY}`));
 
         const { contentCrawlerOptions } = await processInput(
             parseParameters(`?query=hello&desiredConcurrency=17&proxyConfiguration=${CALLER_PROXY}`),
         );
 
-        expect(contentCrawlerOptions.crawlerOptions.autoscaledPoolOptions?.desiredConcurrency).toBe(5);
+        expect(contentCrawlerOptions.crawlerOptions.autoscaledPoolOptions?.desiredConcurrency).toBe(23);
     });
 });

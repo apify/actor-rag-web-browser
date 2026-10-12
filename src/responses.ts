@@ -176,14 +176,13 @@ const MIGRATION_GRACE_MILLIS = 25_000;
 
 let migration: Promise<void> | undefined;
 
-/** Whether the platform has announced that this run is moving to another server. */
 export function isMigrating() {
     return migration !== undefined;
 }
 
 /**
- * Lets the requests already in flight finish, then answers whoever is left. Returned so that the
- * caller can hold the move back, and kept so that the second announcement joins the first.
+ * Returned so the caller can hold the move back, and kept so the second announcement joins the first
+ * rather than starting a second wait.
  */
 export async function startMigration(graceMillis = MIGRATION_GRACE_MILLIS) {
     migration ??= (async () => {

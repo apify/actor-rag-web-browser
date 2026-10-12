@@ -97,8 +97,7 @@ export async function processInput(originalInput: Partial<Input>) {
     // In Standby a proxy problem must fail one request; in Normal mode there is nothing to serve.
     await validateProxyConfiguration(input.proxyConfiguration, !isActorStandby());
 
-    // A Standby request builds these options whenever no crawler is cached yet, so whichever caller
-    // got there first would size the pool every later caller shares. The run sizes it instead.
+    // A request builds these options when no crawler is cached yet, and must not size the shared pool.
     if (isActorStandby()) input.desiredConcurrency = runDesiredConcurrency;
 
     const contentCrawlerOptions: ContentCrawlerOptions = input.scrapingTool === 'raw-http'
