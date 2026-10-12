@@ -198,6 +198,8 @@ async function handleContent(
     const processedHtml = await processHtml(html, baseUrl, settings, $);
     addTimeMeasureEvent(request.userData, `${crawlerType}-process-html`);
 
+    checkTimeoutAndCancelRequest(request, request.userData.responseId);
+
     const isTooLarge = processedHtml.length > settings.maxHtmlCharsToProcess;
     const text = isTooLarge ? load(processedHtml).text() : htmlToText(load(processedHtml).html());
 

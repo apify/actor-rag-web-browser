@@ -207,7 +207,7 @@ describe('Charging from standby requests', () => {
      * Submits a search request straight to the search crawler, pointed at a stand-in result page on the
      * test server so that the crawler can be exercised without reaching Google.
      */
-    async function submitSearch(path: string, userData: Partial<SearchCrawlerUserData> = {}) {
+    async function submitSearch(path: string, userData: Partial<SearchCrawlerUserData> = {}, { waiting = true } = {}) {
         const request = createSearchRequest({
             query: 'hello world',
             maxResults: 1,
@@ -227,6 +227,8 @@ describe('Charging from standby requests', () => {
             ...userData,
         });
         request.url = `${baseUrl}${path}`;
+        // A search always has a caller waiting on it, unless that caller has gone.
+        if (waiting) createResponsePromise(request.userData!.responseId, 30).catch(() => undefined);
         await addSearchRequest(request, searchCrawlerKey);
         return request.uniqueKey!;
     }
@@ -237,6 +239,16 @@ describe('Charging from standby requests', () => {
         // The stand-in result page links to a page of its own, so a fetch means the search is done with.
         await vi.waitFor(() => expect(charging.chargeFetch).toHaveBeenCalled(), { timeout: 10_000 });
         expect(charging.chargeSearch).toHaveBeenCalledExactlyOnceWith({ actorRequestId: 'request123', idempotencyKey: uniqueKey });
+    });
+
+    it('does not charge for a search whose caller has already gone', async () => {
+        const finishedBefore = searchCrawler!.stats.state.requestsFinished;
+
+        await submitSearch('/serp', {}, { waiting: false });
+
+        await vi.waitFor(() => expect(searchCrawler!.stats.state.requestsFinished).toBe(finishedBefore + 1), { timeout: 10_000 });
+        expect(charging.chargeSearch).not.toHaveBeenCalled();
+        expect(charging.chargeFetch).not.toHaveBeenCalled();
     });
 
     it('does not charge for a search that Google refuses with an empty page', async () => {

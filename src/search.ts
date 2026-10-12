@@ -9,7 +9,7 @@ import { addContentCrawlRequest, addSearchRequest, createAndStartContentCrawler,
 import { UserInputError } from './errors.js';
 import { processInput } from './input.js';
 import { getMiniActor } from './mini-actors.js';
-import { createResponsePromise } from './responses.js';
+import { createResponsePromise, isMigrating, MIGRATION_MESSAGE } from './responses.js';
 import type {
     ContentCrawlerOptions,
     ContentScraperSettings,
@@ -107,6 +107,9 @@ function prepareRequest(
  * Returns a promise that resolves to the final results array of Output objects.
  */
 async function runSearchProcess(params: Partial<Input>, actorRequestId?: string): Promise<Output[]> {
+    // Starting a crawl the move is about to interrupt only costs the caller their own timeout.
+    if (isMigrating()) throw new Error(MIGRATION_MESSAGE);
+
     // Process the query parameters the same way as normal inputs
     const {
         input,

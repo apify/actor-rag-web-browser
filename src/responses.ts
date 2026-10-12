@@ -1,5 +1,6 @@
 import { log } from 'apify';
 import type { RequestOptions } from 'crawlee';
+import { sleep } from 'crawlee';
 
 import { ContentCrawlerStatus } from './const.js';
 import type { ContentCrawlerUserData, Output } from './types.js';
@@ -163,19 +164,37 @@ export function sendResponseIfFinished(responseId: string) {
         sendResponseOk(responseId, sortResultsByRank(res));
     }
 }
+
+export const MIGRATION_MESSAGE = 'Actor had to migrate to another server. Please, retry your request.';
+
 /**
- * Add timeout to all responses when actor is migrating (source: SuperScraper).
+ * Crawlee already stops taking new pages on migration and waits up to `SAFE_MIGRATION_WAIT_MILLIS`,
+ * 20 seconds, for the ones in flight; `Actor.reboot()` waits for that listener. Answering sooner
+ * would throw away work the crawler is still finishing, so wait a little longer than it does.
  */
-export const addTimeoutToAllResponses = (timeoutSeconds = 60) => {
-    const migrationErrorMessage = {
-        errorMessage: `Actor had to migrate to another server. Please, retry your request.`,
-    };
+const MIGRATION_GRACE_MILLIS = 25_000;
 
-    const responseKeys = Object.keys(responseData);
+let migration: Promise<void> | undefined;
 
-    for (const key of responseKeys) {
-        setTimeout(() => {
-            sendResponseError(key, JSON.stringify(migrationErrorMessage));
-        }, timeoutSeconds * 1000);
-    }
-};
+export function isMigrating() {
+    return migration !== undefined;
+}
+
+/**
+ * Returned so the caller can hold the move back, and kept so the second announcement joins the first
+ * rather than starting a second wait.
+ */
+export async function startMigration(graceMillis = MIGRATION_GRACE_MILLIS) {
+    migration ??= (async () => {
+        const deadline = Date.now() + graceMillis;
+        while (responseData.size > 0 && Date.now() < deadline) {
+            await sleep(200);
+        }
+
+        for (const responseId of [...responseData.keys()]) {
+            sendResponseError(responseId, MIGRATION_MESSAGE);
+        }
+    })();
+
+    return migration;
+}
