@@ -6,32 +6,40 @@ import {
     addEmptyResultToResponse,
     addResultToResponse,
     createResponsePromise,
-    failAllResponsesOnMigration,
+    sendResponseIfFinished,
+    startMigration,
 } from '../src/responses.js';
 
-describe('a run that migrates to another server', () => {
-    it('tells a caller still waiting to retry, rather than leaving it on its own timeout', async () => {
-        const waiting = createResponsePromise('nothing-finished', 300);
+const handled = (responseId: string, url: string) => {
+    addEmptyResultToResponse(responseId, { url, uniqueKey: url } as never);
+    addResultToResponse(responseId, url, {
+        crawl: { requestStatus: ContentCrawlerStatus.HANDLED },
+        metadata: { url },
+        searchResult: { rank: 1 },
+    } as never);
+};
 
-        failAllResponsesOnMigration();
-
-        await expect(waiting).rejects.toThrow('Actor had to migrate to another server. Please, retry your request.');
-    });
-
-    // This is what makes it safe to answer at once instead of giving the crawl a grace period.
-    it('still returns the results a caller already has', async () => {
-        const waiting = createResponsePromise('one-page-finished', 300);
+// A run moves only once, so every outcome of that one move belongs in a single test.
+describe('a run that moves to another server', () => {
+    it('lets callers finish, keeps what the rest already have, and tells the empty ones to retry', async () => {
+        const inTime = createResponsePromise('in-time', 300);
+        const partial = createResponsePromise('partial', 300);
+        const empty = createResponsePromise('empty', 300);
         const url = 'https://example.com/finished';
-        addEmptyResultToResponse('one-page-finished', { url, uniqueKey: url } as never);
-        addResultToResponse('one-page-finished', url, {
-            crawl: { requestStatus: ContentCrawlerStatus.HANDLED },
-            metadata: { url },
-            searchResult: { rank: 1 },
-        } as never);
 
-        failAllResponsesOnMigration();
+        const moved = startMigration(500);
+        handled('in-time', url);
+        sendResponseIfFinished('in-time');
+        handled('partial', url);
+        addEmptyResultToResponse('partial', { url: 'https://example.com/pending', uniqueKey: 'pending', userData: { searchResult: { rank: 2 } } } as never);
+        await moved;
 
-        await expect(waiting).resolves.toMatchObject([{ metadata: { url } }]);
+        await expect(inTime).resolves.toMatchObject([{ metadata: { url } }]);
+        await expect(partial).resolves.toMatchObject([
+            { metadata: { url } },
+            { crawl: { requestStatus: ContentCrawlerStatus.FAILED } },
+        ]);
+        await expect(empty).rejects.toThrow('Actor had to migrate to another server. Please, retry your request.');
     });
 });
 

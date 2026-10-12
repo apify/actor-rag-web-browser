@@ -4,7 +4,7 @@ import { log } from 'crawlee';
 import { createAndStartContentCrawler, createAndStartSearchCrawler } from './crawlers.js';
 import { processInput, processStandbyInput } from './input.js';
 import { getMiniActor } from './mini-actors.js';
-import { failAllResponsesOnMigration } from './responses.js';
+import { startMigration } from './responses.js';
 import { handleSearchNormalMode } from './search.js';
 import { createServer } from './server.js';
 import { findActorTip, storeActorTip } from './tips.js';
@@ -13,7 +13,7 @@ import { isActorStandby } from './utils.js';
 
 await Actor.init();
 
-Actor.on('migrating', failAllResponsesOnMigration);
+Actor.on('migrating', async () => startMigration());
 
 const originalInput = await Actor.getInput<Partial<Input>>() ?? {} as Input;
 
