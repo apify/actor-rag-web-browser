@@ -4,7 +4,7 @@ import { MemoryStorage } from '@crawlee/memory-storage';
 import { RequestQueue } from 'apify';
 import { Configuration, log, PlaywrightCrawler, type PlaywrightCrawlingContext } from 'crawlee';
 import { firefox } from 'playwright';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { requestHandlerPlaywright } from '../src/request-handler.js';
 import type { ContentCrawlerUserData, ContentScraperSettings, Output } from '../src/types.js';
@@ -28,7 +28,7 @@ describe('Playwright Crawler Content Tests', () => {
     });
 
     /**
-     * Scrapes a single URL and returns the results the request handler pushed to the dataset.
+     * Scrapes a single URL and returns the results of the request handler.
      */
     async function scrapeWithPlaywright(url: string, settings: Partial<ContentScraperSettings> = {}) {
         const results: Output[] = [];
@@ -41,10 +41,7 @@ describe('Playwright Crawler Content Tests', () => {
         const crawler = new PlaywrightCrawler({
             requestQueue,
             requestHandler: async (context) => {
-                vi.spyOn(context, 'pushData').mockImplementation(async (data) => {
-                    results.push(data as Output);
-                });
-                await requestHandlerPlaywright(context as unknown as PlaywrightCrawlingContext<ContentCrawlerUserData>);
+                results.push(await requestHandlerPlaywright(context as unknown as PlaywrightCrawlingContext<ContentCrawlerUserData>));
             },
             failedRequestHandler: async ({ request }, error) => {
                 log.error(`Request ${request.url} failed with error: ${error.message}`);

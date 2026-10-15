@@ -10,6 +10,7 @@ import {
     type CheerioCrawlerOptions,
     type CheerioCrawlingContext,
     log,
+    NonRetryableError,
     PlaywrightCrawler,
     type PlaywrightCrawlerOptions,
     type PlaywrightCrawlingContext,
@@ -17,9 +18,10 @@ import {
     type RequestOptions,
 } from 'crawlee';
 
-import { chargeFetch, chargeSearch } from './charging.js';
+import { canAfford, chargeFetch, chargeSearch } from './charging.js';
 import { ContentCrawlerTypes, GOOGLE_STANDARD_RESULTS_PER_PAGE } from './const.js';
 import { deduplicateResults, scrapeOrganicResults } from './google-search/google-extractors-urls.js';
+import { getMiniActor } from './mini-actors.js';
 import {
     failedRequestHandler,
     requestHandlerCheerio,
@@ -120,6 +122,7 @@ export async function createAndStartSearchCrawler(
             // and invalidate the caller's request ID. The flag rides along with the request, so a retry
             // of this handler cannot charge the query twice.
             if (organicResults.length > 0 && !request.userData.isSearchChargeAttempted) {
+                if (!canAfford(getMiniActor().chargeEvents.search)) failUnaffordableRequest();
                 request.userData.isSearchChargeAttempted = true;
                 await chargeSearch({ actorRequestId, idempotencyKey: request.uniqueKey });
             }
@@ -229,10 +232,28 @@ export async function createAndStartContentCrawler(
     return { key, crawler };
 }
 
-/**
- * Sends at most one charge per page: Crawlee retries a handler that fails after its charge went out, and
- * that charge may already have been recorded.
- */
+function failUnaffordableRequest(): never {
+    throw new NonRetryableError('The run has spent its maximum total charge.');
+}
+
+/** Pre-navigation hook, so a search the run cannot pay for never reaches Google. */
+export function failUnaffordableSearch({ request }: { request: Request }) {
+    // A query is charged once, however many result pages it spans, so only its first page needs the budget.
+    if (!request.userData.isSearchChargeAttempted && !canAfford(getMiniActor().chargeEvents.search)) {
+        failUnaffordableRequest();
+    }
+}
+
+/** Pre-navigation hook, so a page the run cannot pay for is never fetched. */
+export function failUnaffordableFetch(crawlerType: ContentCrawlerTypes) {
+    return ({ request }: { request: Request }) => {
+        // A retry of a page whose charge already went out needs no budget, as it is not charged again.
+        if (!request.userData.isFetchChargeAttempted && !canAfford(getMiniActor().chargeEvents.fetch?.[crawlerType])) {
+            failUnaffordableRequest();
+        }
+    };
+}
+
 async function chargeFetchOnce(request: Request<ContentCrawlerUserData>, crawlerType: ContentCrawlerTypes) {
     if (request.userData.isFetchChargeAttempted) return;
 
@@ -244,15 +265,21 @@ async function chargeFetchOnce(request: Request<ContentCrawlerUserData>, crawler
 }
 
 /**
- * Hands a finished page to the response it belongs to.
+ * Stores a finished page in the dataset and hands it to the response it belongs to.
  *
  * Only called once the page has been charged for: a response completes as soon as none of its pages are
  * pending any more, so registering a page earlier would let a sibling finishing first send the response
  * while this page's charge is still in flight - and the platform refuses a charge whose request is gone.
  */
-function completeContentRequest(request: Request<ContentCrawlerUserData>, result: Output) {
+async function completeContentRequest(
+    context: CheerioCrawlingContext<ContentCrawlerUserData> | PlaywrightCrawlingContext<ContentCrawlerUserData>,
+    result: Output,
+) {
+    const { request } = context;
     const { responseId } = request.userData;
 
+    log.info(`Adding result to the Apify dataset, url: ${request.url}`);
+    await context.pushData(result);
     addResultToResponse(responseId, request.uniqueKey, result);
     sendResponseIfFinished(responseId);
 }
@@ -269,9 +296,13 @@ async function createPlaywrightContentCrawler(
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
         requestHandler: (async (context) => {
             const typedContext = context as unknown as PlaywrightCrawlingContext<ContentCrawlerUserData>;
+            const { request } = typedContext;
+            const { isFetchChargeAttempted } = request.userData;
+            const fetchEvent = getMiniActor().chargeEvents.fetch?.[ContentCrawlerTypes.PLAYWRIGHT];
             const result = await requestHandlerPlaywright(typedContext, blocker);
-            await chargeFetchOnce(typedContext.request, ContentCrawlerTypes.PLAYWRIGHT);
-            completeContentRequest(typedContext.request, result);
+            if (!isFetchChargeAttempted && !canAfford(fetchEvent)) failUnaffordableRequest();
+            await chargeFetchOnce(request, ContentCrawlerTypes.PLAYWRIGHT);
+            await completeContentRequest(typedContext, result);
         }),
         failedRequestHandler: async ({ request }, err) => {
             await failedRequestHandler(request, err, ContentCrawlerTypes.PLAYWRIGHT);
@@ -293,9 +324,13 @@ async function createCheerioContentCrawler(
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
         requestHandler: (async (context) => {
             const typedContext = context as unknown as CheerioCrawlingContext<ContentCrawlerUserData>;
+            const { request } = typedContext;
+            const { isFetchChargeAttempted } = request.userData;
+            const fetchEvent = getMiniActor().chargeEvents.fetch?.[ContentCrawlerTypes.CHEERIO];
             const result = await requestHandlerCheerio(typedContext);
-            await chargeFetchOnce(typedContext.request, ContentCrawlerTypes.CHEERIO);
-            completeContentRequest(typedContext.request, result);
+            if (!isFetchChargeAttempted && !canAfford(fetchEvent)) failUnaffordableRequest();
+            await chargeFetchOnce(request, ContentCrawlerTypes.CHEERIO);
+            await completeContentRequest(typedContext, result);
         }),
         failedRequestHandler: async ({ request }, err) => {
             await failedRequestHandler(request, err, ContentCrawlerTypes.CHEERIO);

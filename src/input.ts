@@ -6,6 +6,7 @@ import { firefox } from 'playwright';
 
 import ragWebBrowserInputSchema from '../actors/apify_rag-web-browser/.actor/input_schema.json' with { type: 'json' };
 import { ContentCrawlerTypes } from './const.js';
+import { failUnaffordableFetch, failUnaffordableSearch } from './crawlers.js';
 import { UserInputError } from './errors.js';
 import { blockMediaRequests } from './media.js';
 import { getMiniActor } from './mini-actors.js';
@@ -173,6 +174,7 @@ async function processRagWebBrowserInput(input: Partial<RagWebBrowserInput>, sta
         maxRequestRetries: input.serpMaxRetries,
         proxyConfiguration: proxySearch,
         autoscaledPoolOptions: { desiredConcurrency: 1 },
+        preNavigationHooks: [failUnaffordableSearch],
     };
     const validatedRagBrowserInput = validateAndFillInput(input) as RagWebBrowserInput;
     return {
@@ -238,6 +240,7 @@ function createPlaywrightCrawlerOptions(
                 launcher: firefox,
             },
             preNavigationHooks: [
+                failUnaffordableFetch(ContentCrawlerTypes.PLAYWRIGHT),
                 async ({ page }) => {
                     await blockMediaRequests(page);
                 },
@@ -275,6 +278,7 @@ function createCheerioCrawlerOptions(
             maxRequestRetries,
             proxyConfiguration: proxy,
             requestHandlerTimeoutSecs: input.requestTimeoutSecs,
+            preNavigationHooks: [failUnaffordableFetch(ContentCrawlerTypes.CHEERIO)],
             autoscaledPoolOptions: {
                 desiredConcurrency,
             },

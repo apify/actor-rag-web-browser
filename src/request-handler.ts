@@ -135,16 +135,16 @@ function getPlaywrightResponseHeaders(response: PlaywrightCrawlingContext['respo
 }
 
 /**
- * Stores an empty result for a page we haven't extracted any content from.
+ * Creates an empty result for a page we haven't extracted any content from.
  */
-async function pushSkippedResult(
+function createSkippedResult(
     context: ContentCrawlingContext,
     httpStatusMessage: string,
     httpStatusCode?: number,
-): Promise<Output> {
+): Output {
     const { request } = context;
 
-    const resultSkipped: Output = {
+    return {
         crawl: {
             httpStatusCode,
             httpStatusMessage,
@@ -157,24 +157,21 @@ async function pushSkippedResult(
         query: request.userData.query,
         text: '',
     };
-    log.info(`Adding result to the Apify dataset, url: ${request.url}`);
-    await context.pushData(resultSkipped);
-    return resultSkipped;
 }
 
 /**
- * @returns The stored empty result when the response holds nothing we can parse, `undefined` when the
- * page can be processed after all.
+ * @returns An empty result when the response holds nothing we can parse, `undefined` when the page can be
+ * processed after all.
  */
-async function skipUnparsableResponse(
+function skipUnparsableResponse(
     $: CheerioCrawlingContext['$'],
     contentType: string | undefined,
     statusCode: number | undefined,
     context: ContentCrawlingContext,
-): Promise<Output | undefined> {
+): Output | undefined {
     if (!$ || !isValidContentType(contentType)) {
         log.info(`Skipping URL ${context.request.loadedUrl} as it could not be parsed.`, { contentType });
-        return pushSkippedResult(context, "Couldn't parse the content", statusCode);
+        return createSkippedResult(context, "Couldn't parse the content", statusCode);
     }
 
     return undefined;
@@ -238,22 +235,20 @@ async function handleContent(
     if (settings.debugMode) {
         result.crawl.debug = { timeMeasures: transformTimeMeasuresToRelative(request.userData.timeMeasures!) };
     }
-    log.info(`Adding result to the Apify dataset, url: ${request.url}`);
-    await context.pushData(result);
     return result;
 }
 
 /**
- * Stores a Markdown or plain text document as it is, since it is already in the form we would convert a
+ * Returns a Markdown or plain text document as it is, since it is already in the form we would convert a
  * page to.
  */
-async function handleTextDocument(
+function handleTextDocument(
     text: string,
     crawlerType: ContentCrawlerTypes,
     statusCode: number | undefined,
     headers: IncomingHttpHeaders | undefined,
     context: ContentCrawlingContext,
-): Promise<Output> {
+): Output {
     const { request } = context;
     const { contentScraperSettings: settings } = request.userData;
 
@@ -283,14 +278,12 @@ async function handleTextDocument(
     if (settings.debugMode) {
         result.crawl.debug = { timeMeasures: transformTimeMeasuresToRelative(request.userData.timeMeasures!) };
     }
-    log.info(`Adding result to the Apify dataset, url: ${request.url}`);
-    await context.pushData(result);
     return result;
 }
 
 /**
- * @returns The result for this page. The caller registers it with the response, once the page has been
- * charged for.
+ * @returns The result for this page. The caller stores it and registers it with the response, once the page
+ * has been charged for.
  */
 export async function requestHandlerPlaywright(
     context: PlaywrightCrawlingContext<ContentCrawlerUserData>,
@@ -306,7 +299,7 @@ export async function requestHandlerPlaywright(
 
     // Media file requests are created with `skipNavigation` (see `createRequest`), so there is no page to process.
     if (request.skipNavigation) {
-        return pushSkippedResult(context, SKIPPED_MEDIA_FILE_MESSAGE);
+        return createSkippedResult(context, SKIPPED_MEDIA_FILE_MESSAGE);
     }
 
     const headers = getPlaywrightResponseHeaders(response);
@@ -359,7 +352,7 @@ export async function requestHandlerPlaywright(
     const $ = await context.parseWithCheerio();
     addTimeMeasureEvent(request.userData, 'playwright-parse-with-cheerio');
 
-    const skipped = await skipUnparsableResponse($, contentType, statusCode, context);
+    const skipped = skipUnparsableResponse($, contentType, statusCode, context);
     if (skipped) return skipped;
 
     return handleContent($, ContentCrawlerTypes.PLAYWRIGHT, statusCode, headers, context);
@@ -379,7 +372,7 @@ export async function requestHandlerCheerio(
 
     // Media file requests are created with `skipNavigation` (see `createRequest`), so there is no response.
     if (request.skipNavigation) {
-        return pushSkippedResult(context, SKIPPED_MEDIA_FILE_MESSAGE);
+        return createSkippedResult(context, SKIPPED_MEDIA_FILE_MESSAGE);
     }
 
     const { statusCode } = response;
@@ -391,7 +384,7 @@ export async function requestHandlerCheerio(
         return handleTextDocument(text, ContentCrawlerTypes.CHEERIO, statusCode, response.headers, context);
     }
 
-    const skipped = await skipUnparsableResponse($, response.headers['content-type'], statusCode, context);
+    const skipped = skipUnparsableResponse($, response.headers['content-type'], statusCode, context);
     if (skipped) return skipped;
 
     return handleContent($, ContentCrawlerTypes.CHEERIO, statusCode, response.headers, context);

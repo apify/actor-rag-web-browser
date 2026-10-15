@@ -1,20 +1,24 @@
 import { log } from 'crawlee';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { chargeFetch, chargeSearch } from '../src/charging.js';
+import { canAfford, chargeFetch, chargeSearch } from '../src/charging.js';
 import { ContentCrawlerTypes } from '../src/const.js';
 
 const mocks = vi.hoisted(() => ({
     charge: vi.fn(),
     getEnv: vi.fn(),
     getPricingInfo: vi.fn(),
+    calculateMaxEventChargeCountWithinLimit: vi.fn(),
 }));
 
 vi.mock('apify', () => ({
     Actor: {
         charge: mocks.charge,
         getEnv: mocks.getEnv,
-        getChargingManager: () => ({ getPricingInfo: mocks.getPricingInfo }),
+        getChargingManager: () => ({
+            getPricingInfo: mocks.getPricingInfo,
+            calculateMaxEventChargeCountWithinLimit: mocks.calculateMaxEventChargeCountWithinLimit,
+        }),
     },
 }));
 
@@ -35,6 +39,8 @@ describe('Pay-per-event charging', () => {
         process.env.ACTOR_FULL_NAME = 'apify/rag-web-browser';
         mocks.getEnv.mockReturnValue(NORMAL_ENV);
         mocks.getPricingInfo.mockReturnValue({ isPayPerEvent: true });
+        // No budget limit, as for a run without `maxTotalChargeUsd`, unless a test is about the budget.
+        mocks.calculateMaxEventChargeCountWithinLimit.mockReturnValue(Infinity);
         fetchMock = vi.fn().mockResolvedValue({ ok: true, text: async () => '' });
         vi.stubGlobal('fetch', fetchMock);
     });
@@ -65,6 +71,7 @@ describe('Pay-per-event charging', () => {
 
         await expect(chargeSearch(CONTEXT)).resolves.toBeUndefined();
         await expect(chargeFetch(ContentCrawlerTypes.CHEERIO, CONTEXT)).resolves.toBeUndefined();
+        expect(canAfford('search')).toBe(true);
         expect(mocks.charge).not.toHaveBeenCalled();
     });
 
@@ -83,34 +90,39 @@ describe('Pay-per-event charging', () => {
             expect(mocks.charge).toHaveBeenNthCalledWith(1, { eventName: 'fetch' });
             expect(mocks.charge).toHaveBeenNthCalledWith(2, { eventName: 'fetch' });
         });
+
+        // The crawlers check it before any work goes into a request and right before charging for it.
+        it.each([
+            { chargeableCount: 1, isCovered: true },
+            { chargeableCount: 0, isCovered: false },
+        ])('reports whether the run can pay for one more event: $isCovered, with budget for $chargeableCount', ({ chargeableCount, isCovered }) => {
+            mocks.calculateMaxEventChargeCountWithinLimit.mockReturnValue(chargeableCount);
+
+            expect(canAfford('fetch')).toBe(isCovered);
+            expect(mocks.calculateMaxEventChargeCountWithinLimit).toHaveBeenCalledWith('fetch');
+        });
     });
 
-    describe('in standby mode', () => {
+    // Single-tenant Standby gives every caller a run of their own, so its owner is the caller - and the SDK keeps
+    // track of the budget they set for it.
+    describe('in single-tenant standby mode', () => {
         beforeEach(() => {
             mocks.getEnv.mockReturnValue(STANDBY_ENV);
         });
 
-        it('bills the caller of the request rather than the owner of the run', async () => {
-            await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, { ...CONTEXT, actorRequestId: 'request123' });
-
-            expect(mocks.charge).not.toHaveBeenCalled();
-            expect(fetchMock).toHaveBeenCalledOnce();
-
-            const [url, options] = fetchMock.mock.calls[0];
-            expect(url).toBe(`${API_BASE_URL}v2/actor-runs/${RUN_ID}/charge`);
-            expect(options.method).toBe('POST');
-            expect(options.headers.Authorization).toBe(`Bearer ${TOKEN}`);
-            expect(options.headers['Idempotency-Key']).toBe('uniqueKey123');
-            expect(options.signal.aborted).toBe(false);
-            expect(JSON.parse(options.body)).toEqual({ eventName: 'fetch', count: 1, requestId: 'request123' });
-        });
-
-        // Single-tenant Standby gives every caller a run of their own, so its owner is the caller.
-        it('falls back to the owner of the run when the caller cannot be identified', async () => {
+        it('charges the owner of the run through the SDK, whether or not the request has an ID', async () => {
+            await chargeFetch(ContentCrawlerTypes.CHEERIO, { ...CONTEXT, actorRequestId: 'request123' });
             await chargeFetch(ContentCrawlerTypes.CHEERIO, CONTEXT);
 
             expect(fetchMock).not.toHaveBeenCalled();
-            expect(mocks.charge).toHaveBeenCalledExactlyOnceWith({ eventName: 'fetch' });
+            expect(mocks.charge).toHaveBeenNthCalledWith(1, { eventName: 'fetch' });
+            expect(mocks.charge).toHaveBeenNthCalledWith(2, { eventName: 'fetch' });
+        });
+
+        it('holds the run to its budget', async () => {
+            mocks.calculateMaxEventChargeCountWithinLimit.mockReturnValue(0);
+
+            expect(canAfford('fetch')).toBe(false);
         });
     });
 
@@ -134,8 +146,34 @@ describe('Pay-per-event charging', () => {
             expect(fetchMock).not.toHaveBeenCalled();
         });
 
-        // Its Standby runs are shared between callers, so a charge that cannot be attributed to one of
-        // them would land on us instead.
+        // Its Standby runs are ours and shared between callers, so each caller is billed directly.
+        it('bills the standby caller of the request rather than the owner of the run', async () => {
+            mocks.getEnv.mockReturnValue(STANDBY_ENV);
+
+            await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, { ...CONTEXT, actorRequestId: 'request123' });
+
+            expect(mocks.charge).not.toHaveBeenCalled();
+            expect(fetchMock).toHaveBeenCalledOnce();
+
+            const [url, options] = fetchMock.mock.calls[0];
+            expect(url).toBe(`${API_BASE_URL}v2/actor-runs/${RUN_ID}/charge`);
+            expect(options.method).toBe('POST');
+            expect(options.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+            expect(options.headers['Idempotency-Key']).toBe('uniqueKey123');
+            expect(options.signal.aborted).toBe(false);
+            expect(JSON.parse(options.body)).toEqual({ eventName: 'playwright-result', count: 1, requestId: 'request123' });
+        });
+
+        // The budget is set by the owner of a run, and its Standby runs are ours.
+        it('does not hold a standby run to a budget', async () => {
+            mocks.getEnv.mockReturnValue(STANDBY_ENV);
+            mocks.calculateMaxEventChargeCountWithinLimit.mockReturnValue(0);
+
+            expect(canAfford('raw-http-result')).toBe(true);
+            expect(mocks.calculateMaxEventChargeCountWithinLimit).not.toHaveBeenCalled();
+        });
+
+        // A charge that cannot be attributed to a caller would land on us instead.
         it('skips a standby charge that cannot be attributed to a caller', async () => {
             mocks.getEnv.mockReturnValue(STANDBY_ENV);
             const warningSpy = vi.spyOn(log, 'warning').mockImplementation(() => undefined);
@@ -151,6 +189,7 @@ describe('Pay-per-event charging', () => {
 
     describe('when charging fails', () => {
         it('serves the request and reports why it could not be charged for', async () => {
+            process.env.ACTOR_FULL_NAME = 'apify/url-to-markdown';
             mocks.getEnv.mockReturnValue(STANDBY_ENV);
             fetchMock.mockResolvedValue({ ok: false, text: async () => 'requestId is invalid or has expired' });
             const errorSpy = vi.spyOn(log, 'error').mockImplementation(() => undefined);

@@ -4,7 +4,7 @@ import { ImpitHttpClient } from '@crawlee/impit-client';
 import { MemoryStorage } from '@crawlee/memory-storage';
 import { RequestQueue } from 'apify';
 import { CheerioCrawler, type CheerioCrawlingContext, Configuration, log } from 'crawlee';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { ContentCrawlerTypes } from '../src/const.js';
 import { createAndStartContentCrawler } from '../src/crawlers.js';
@@ -39,11 +39,9 @@ describe('Cheerio Crawler Content Tests', () => {
         const crawler = new CheerioCrawler({
             requestQueue,
             requestHandler: async (context: CheerioCrawlingContext<ContentCrawlerUserData>) => {
-                const pushDataSpy = vi.spyOn(context, 'pushData').mockResolvedValue(undefined);
-                await requestHandlerCheerio(context);
+                const result = await requestHandlerCheerio(context);
 
-                expect(pushDataSpy).toHaveBeenCalledTimes(1);
-                expect(pushDataSpy).toHaveBeenCalledWith(expect.objectContaining({
+                expect(result).toEqual(expect.objectContaining({
                     text: expect.stringContaining('hello world'),
                     metadata: expect.objectContaining({
                         title: 'Test Page',

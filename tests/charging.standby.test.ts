@@ -18,6 +18,7 @@ import { createRequest, createSearchRequest } from '../src/utils.js';
 import { MARKDOWN_DOCUMENT, startTestServer, stopTestServer } from './helpers/server.js';
 
 const charging = vi.hoisted(() => ({
+    canAfford: vi.fn().mockReturnValue(true),
     chargeSearch: vi.fn().mockResolvedValue(undefined),
     chargeFetch: vi.fn().mockResolvedValue(undefined),
 }));
