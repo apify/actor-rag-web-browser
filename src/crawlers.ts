@@ -109,10 +109,6 @@ export async function createAndStartSearchCrawler(
         requestHandler: async ({ request, $: _$, addRequests }: CheerioCrawlingContext<SearchCrawlerUserData>) => {
             // NOTE: we need to cast this to fix `cheerio` type errors
             addTimeMeasureEvent(request.userData!, 'cheerio-request-handler-start');
-            // A query is charged once, however many result pages it spans, so only its first page needs the budget.
-            if (!request.userData.isSearchChargeAttempted && !canAfford(getMiniActor().chargeEvents.search)) {
-                failUnaffordableRequest();
-            }
             const $ = _$ as CheerioAPI;
 
             log.info(`Search-crawler requestHandler: Processing URL: ${request.url}`);
@@ -240,9 +236,24 @@ function failUnaffordableRequest(): never {
     throw new NonRetryableError('The run has spent its maximum total charge.');
 }
 
-/**
- * If the fetch has been attempted already, it won't be charged again.
- */
+/** Pre-navigation hook, so a search the run cannot pay for never reaches Google. */
+export function failUnaffordableSearch({ request }: { request: Request }) {
+    // A query is charged once, however many result pages it spans, so only its first page needs the budget.
+    if (!request.userData.isSearchChargeAttempted && !canAfford(getMiniActor().chargeEvents.search)) {
+        failUnaffordableRequest();
+    }
+}
+
+/** Pre-navigation hook, so a page the run cannot pay for is never fetched. */
+export function failUnaffordableFetch(crawlerType: ContentCrawlerTypes) {
+    return ({ request }: { request: Request }) => {
+        // A retry of a page whose charge already went out needs no budget, as it is not charged again.
+        if (!request.userData.isFetchChargeAttempted && !canAfford(getMiniActor().chargeEvents.fetch?.[crawlerType])) {
+            failUnaffordableRequest();
+        }
+    };
+}
+
 async function chargeFetchOnce(request: Request<ContentCrawlerUserData>, crawlerType: ContentCrawlerTypes) {
     if (request.userData.isFetchChargeAttempted) return;
 
@@ -288,8 +299,6 @@ async function createPlaywrightContentCrawler(
             const { request } = typedContext;
             const { isFetchChargeAttempted } = request.userData;
             const fetchEvent = getMiniActor().chargeEvents.fetch?.[ContentCrawlerTypes.PLAYWRIGHT];
-            // A retry of a page whose charge already went out needs no budget, as it is not charged again.
-            if (!isFetchChargeAttempted && !canAfford(fetchEvent)) failUnaffordableRequest();
             const result = await requestHandlerPlaywright(typedContext, blocker);
             if (!isFetchChargeAttempted && !canAfford(fetchEvent)) failUnaffordableRequest();
             await chargeFetchOnce(request, ContentCrawlerTypes.PLAYWRIGHT);
@@ -318,8 +327,6 @@ async function createCheerioContentCrawler(
             const { request } = typedContext;
             const { isFetchChargeAttempted } = request.userData;
             const fetchEvent = getMiniActor().chargeEvents.fetch?.[ContentCrawlerTypes.CHEERIO];
-            // A retry of a page whose charge already went out needs no budget, as it is not charged again.
-            if (!isFetchChargeAttempted && !canAfford(fetchEvent)) failUnaffordableRequest();
             const result = await requestHandlerCheerio(typedContext);
             if (!isFetchChargeAttempted && !canAfford(fetchEvent)) failUnaffordableRequest();
             await chargeFetchOnce(request, ContentCrawlerTypes.CHEERIO);

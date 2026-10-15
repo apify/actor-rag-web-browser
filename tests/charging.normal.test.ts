@@ -3,7 +3,7 @@ import type { Server } from 'node:http';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ContentCrawlerStatus, ContentCrawlerTypes } from '../src/const.js';
-import { addContentCrawlRequest, createAndStartContentCrawler } from '../src/crawlers.js';
+import { addContentCrawlRequest, createAndStartContentCrawler, failUnaffordableFetch } from '../src/crawlers.js';
 import { createResponsePromise } from '../src/responses.js';
 import type { ContentScraperSettings } from '../src/types.js';
 import { createRequest } from '../src/utils.js';
@@ -47,7 +47,7 @@ describe('Charging in normal mode', () => {
         testServer = startTestServer(testServerPort);
         ({ crawler, key: crawlerKey } = await createAndStartContentCrawler({
             type: ContentCrawlerTypes.CHEERIO,
-            crawlerOptions: { maxRequestRetries: 1 },
+            crawlerOptions: { maxRequestRetries: 1, preNavigationHooks: [failUnaffordableFetch(ContentCrawlerTypes.CHEERIO)] },
         }, false));
     });
 
