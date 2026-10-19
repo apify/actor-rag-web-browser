@@ -51,7 +51,7 @@ async function waitForPlaywright({ page }: PlaywrightCrawlingContext, time: numb
  *
  * @throws when the response this request belongs to is gone.
  */
-function checkTimeoutAndCancelRequest(request: Request, responseId: string) {
+export function checkTimeoutAndCancelRequest(request: Request, responseId: string) {
     if (!isActorStandby()) return;
 
     if (!responseData.has(responseId)) {
@@ -194,6 +194,8 @@ async function handleContent(
     const html = $html.html()!;
     const processedHtml = await processHtml(html, baseUrl, settings, $);
     addTimeMeasureEvent(request.userData, `${crawlerType}-process-html`);
+
+    checkTimeoutAndCancelRequest(request, request.userData.responseId);
 
     const isTooLarge = processedHtml.length > settings.maxHtmlCharsToProcess;
     const text = isTooLarge ? load(processedHtml).text() : htmlToText(load(processedHtml).html());

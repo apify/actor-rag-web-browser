@@ -34,3 +34,15 @@ export const GOOGLE_STANDARD_RESULTS_PER_PAGE = 10;
 
 /** Reserved key-value store key holding an advisory message about the run. */
 export const TIP_KVS_KEY = 'TIP';
+
+export type ShutdownEvent = 'aborting' | 'migrating' | 'SIGTERM';
+
+/**
+ * How long we keep scraping before answering the rest 503. Longer means more callers get their results.
+ * Limits: SIGTERM lands 15s after an abort, SIGKILL ~6s after a SIGTERM, and a migration waits for us.
+ */
+export const SHUTDOWN_DRAIN_MILLIS: Record<ShutdownEvent, number> = {
+    aborting: 10_000,
+    migrating: 15_000,
+    SIGTERM: 5_000,
+};
