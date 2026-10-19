@@ -63,7 +63,7 @@ describe('Charging against the run budget', () => {
                 { url: `${baseUrl}/basic?page=${i}`, title: 'Test Page' },
                 responseId,
                 { debugMode: false, dynamicContentWaitSecs: 0, maxHtmlCharsToProcess: 1e6, outputFormats: ['markdown'] } as ContentScraperSettings,
-                null,
+                {},
             );
             await addContentCrawlRequest(request, responseId, key);
         }

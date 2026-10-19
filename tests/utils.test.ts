@@ -44,7 +44,7 @@ describe('interpretAsUrl', () => {
 
 describe('per-request retry counts', () => {
     it('takes the content retry count from the scraper settings', () => {
-        const request = createRequest('q', { url: 'https://example.com' }, 'rid', contentScraperSettings);
+        const request = createRequest('q', { url: 'https://example.com' }, 'rid', contentScraperSettings, {});
 
         expect(request.maxRetries).toBe(3);
     });
@@ -57,7 +57,9 @@ describe('per-request retry counts', () => {
             contentCrawlerKey: ContentCrawlerTypes.CHEERIO,
             contentScraperSettings,
             serpMaxRetries: 4,
-        }, undefined);
+            contentProxyOptions: {},
+            proxyOptions: {},
+        });
 
         expect(request.maxRetries).toBe(4);
         expect(request.userData?.serpMaxRetries).toBe(4);
