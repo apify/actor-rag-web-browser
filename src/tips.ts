@@ -3,6 +3,7 @@ import { log } from 'crawlee';
 import { getDomainWithoutSuffix } from 'tldts';
 
 import { TIP_KVS_KEY } from './const.js';
+import type { Output } from './types.js';
 
 export type ActorTip = {
     message: string;
@@ -136,6 +137,14 @@ function findRuleForUrl(url: URL): SiteRule | undefined {
     });
 }
 
+function createTip(rule: SiteRule): ActorTip {
+    return {
+        message: `For scraping ${rule.site}, we recommend using [${rule.actorTitle}](${rule.actorUrl})`,
+        level: 'info',
+        recommendedActorId: rule.actorId,
+    };
+}
+
 export function findActorTip(input: { query?: string; url?: string }): ActorTip | null {
     const target = input.query || input.url;
     if (!target) return null;
@@ -147,11 +156,22 @@ export function findActorTip(input: { query?: string; url?: string }): ActorTip 
         const rule = url ? findRuleForUrl(url) : undefined;
         if (!rule) continue;
 
-        return {
-            message: `For scraping ${rule.site}, we recommend using [${rule.actorTitle}](${rule.actorUrl})`,
-            level: 'info',
-            recommendedActorId: rule.actorId,
-        };
+        return createTip(rule);
+    }
+
+    return null;
+}
+
+export async function findActorTipInResults(): Promise<ActorTip | null> {
+    try {
+        const dataset = await Actor.openDataset<Pick<Output, 'metadata'>>();
+        const { items } = await dataset.getData({ fields: ['metadata'] });
+        for (const { metadata } of items) {
+            const rule = findRuleForUrl(new URL(metadata.url));
+            if (rule) return createTip(rule);
+        }
+    } catch (err) {
+        log.warning(`Failed to look for a tip among the results: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     return null;

@@ -1,7 +1,7 @@
-import { Actor } from 'apify';
+import { Actor, type Dataset } from 'apify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { findActorTip, storeActorTip } from '../src/tips.js';
+import { findActorTip, findActorTipInResults, storeActorTip } from '../src/tips.js';
 
 describe('findActorTip', () => {
     it.each([
@@ -130,6 +130,41 @@ describe('findActorTip', () => {
         expect(findActorTip({ query: '', url: 'https://www.tiktok.com/@apify' })?.message).toContain('TikTok Scraper');
         expect(findActorTip({ query: 'https://www.tiktok.com/@apify', url: 'https://www.amazon.com/dp/1' })?.message).toContain('TikTok Scraper');
         expect(findActorTip({})).toBeNull();
+    });
+});
+
+describe('findActorTipInResults', () => {
+    function mockResults(...urls: string[]) {
+        const items = urls.map((url) => ({ metadata: { url } }));
+        vi.spyOn(Actor, 'openDataset').mockResolvedValue({ getData: async () => ({ items }) } as unknown as Dataset);
+    }
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('recommends an Actor even when just one of the results comes from a listed site', async () => {
+        mockResults('https://example.com/', 'https://example.org/', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+
+        expect((await findActorTipInResults())?.message).toContain('YouTube Scraper');
+    });
+
+    it('recommends the Actor for the first matching result when the results come from several listed sites', async () => {
+        mockResults('https://www.instagram.com/apify/', 'https://www.facebook.com/apify');
+
+        expect((await findActorTipInResults())?.message).toContain('Instagram Scraper');
+    });
+
+    it('does not recommend anything when no result comes from a listed site', async () => {
+        mockResults('https://example.com/', 'https://example.org/');
+
+        expect(await findActorTipInResults()).toBeNull();
+    });
+
+    it('never throws when the results cannot be read', async () => {
+        vi.spyOn(Actor, 'openDataset').mockRejectedValue(new Error('Dataset not found'));
+
+        expect(await findActorTipInResults()).toBeNull();
     });
 });
 
