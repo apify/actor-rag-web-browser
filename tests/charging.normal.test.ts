@@ -1,5 +1,7 @@
 import type { Server } from 'node:http';
 
+import { MemoryStorage } from '@crawlee/memory-storage';
+import { Configuration } from 'crawlee';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ContentCrawlerStatus, ContentCrawlerTypes } from '../src/const.js';
@@ -44,6 +46,9 @@ describe('Charging in normal mode', () => {
     }
 
     beforeAll(async () => {
+        // Keep off the shared ./storage, which the other test files purge and write to in parallel.
+        Configuration.getGlobalConfig().useStorageClient(new MemoryStorage({ persistStorage: false }));
+        Configuration.getGlobalConfig().set('purgeOnStart', false);
         testServer = startTestServer(testServerPort);
         ({ crawler, key: crawlerKey } = await createAndStartContentCrawler({
             type: ContentCrawlerTypes.CHEERIO,
