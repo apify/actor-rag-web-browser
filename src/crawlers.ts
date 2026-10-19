@@ -24,12 +24,18 @@ import { ContentCrawlerTypes, GOOGLE_STANDARD_RESULTS_PER_PAGE } from './const.j
 import { deduplicateResults, resolveGoogleRedirectUrls, scrapeOrganicResults } from './google-search/google-extractors-urls.js';
 import { getMiniActor } from './mini-actors.js';
 import {
+    checkTimeoutAndCancelRequest,
     failedRequestHandler,
     requestHandlerCheerio,
     requestHandlerPlaywright,
     TEXT_DOCUMENT_CONTENT_TYPES,
 } from './request-handler.js';
-import { addEmptyResultToResponse, addResultToResponse, sendResponseError, sendResponseIfFinished } from './responses.js';
+import {
+    addEmptyResultToResponse,
+    addResultToResponse,
+    sendResponseError,
+    sendResponseIfFinished,
+} from './responses.js';
 import type {
     ContentCrawlerOptions,
     ContentCrawlerUserData,
@@ -160,6 +166,9 @@ export async function createAndStartSearchCrawler(
             // Destructure userData for easier access (pagination fields are initialized in createSearchRequest)
             const { collectedResults, currentPage, totalPages, maxResults, actorRequestId } = request.userData;
 
+            // The caller can be gone by now: timed out, failed, or the run is moving.
+            checkTimeoutAndCancelRequest(request, request.userData.responseId);
+
             // Charged for a page of results rather than for submitting the query, so a search Google
             // refuses stays free - but before anything is enqueued, or the response could beat the charge
             // and invalidate the caller's request ID. The flag rides along with the request, so a retry
@@ -169,6 +178,9 @@ export async function createAndStartSearchCrawler(
                 request.userData.isSearchChargeAttempted = true;
                 await chargeSearch({ actorRequestId, idempotencyKey: request.uniqueKey });
             }
+
+            // The charge is awaited, so they can have gone during it.
+            checkTimeoutAndCancelRequest(request, request.userData.responseId);
 
             // Merge with previously collected results and deduplicate
             const allResults = [...collectedResults, ...resolvedResults];
@@ -225,8 +237,7 @@ export async function createAndStartSearchCrawler(
         failedRequestHandler: async ({ request }, err) => {
             addTimeMeasureEvent(request.userData!, 'cheerio-failed-request');
             log.error(`Google-search-crawler failed to process request ${request.url}, error ${err.message}`);
-            const errorResponse = { errorMessage: err.message };
-            sendResponseError(request.uniqueKey, JSON.stringify(errorResponse));
+            sendResponseError(request.userData!.responseId, err.message);
         },
     }));
 

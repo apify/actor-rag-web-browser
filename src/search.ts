@@ -9,7 +9,7 @@ import { addContentCrawlRequest, addSearchRequest, createAndStartContentCrawler,
 import { UserInputError } from './errors.js';
 import { processInput } from './input.js';
 import { getMiniActor } from './mini-actors.js';
-import { createResponsePromise } from './responses.js';
+import { createResponsePromise, RunShuttingDownError } from './responses.js';
 import type {
     ContentCrawlerOptions,
     ContentScraperSettings,
@@ -165,7 +165,9 @@ export async function handleSearchRequest(request: IncomingMessage, response: Se
         response.end(JSON.stringify(results));
     } catch (e) {
         const error = e as Error;
-        const statusCode = error instanceof UserInputError ? 400 : 500;
+        let statusCode = 500;
+        if (error instanceof UserInputError) statusCode = 400;
+        else if (error instanceof RunShuttingDownError) statusCode = 503;
         log.error(`Error occurred: ${error.message}`);
         response.writeHead(statusCode, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify({ errorMessage: error.message }));

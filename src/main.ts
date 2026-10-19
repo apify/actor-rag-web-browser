@@ -4,7 +4,7 @@ import { log } from 'crawlee';
 import { createAndStartContentCrawler, createAndStartSearchCrawler } from './crawlers.js';
 import { processInput, processStandbyInput } from './input.js';
 import { getMiniActor } from './mini-actors.js';
-import { addTimeoutToAllResponses } from './responses.js';
+import { registerShutdownHandlers } from './responses.js';
 import { handleSearchNormalMode } from './search.js';
 import { createServer } from './server.js';
 import { findActorTip, findActorTipInResults, storeActorTip } from './tips.js';
@@ -13,14 +13,16 @@ import { isActorStandby } from './utils.js';
 
 await Actor.init();
 
-Actor.on('migrating', () => {
-    addTimeoutToAllResponses(60);
-});
-
 const originalInput = await Actor.getInput<Partial<Input>>() ?? {} as Input;
+
+// Process-wide, so it follows the run's input: a caller's `debugMode` must not reach other callers.
+// A multi-tenant Standby run is ours, so we keep its debug logs.
+const isMultiTenantStandby = isActorStandby() && getMiniActor().standbyTenancy === 'MULTI_TENANT';
+log.setLevel(originalInput.debugMode || isMultiTenantStandby ? log.LEVELS.DEBUG : log.LEVELS.INFO);
 
 if (isActorStandby()) {
     log.info('Actor is running in the STANDBY mode.');
+    registerShutdownHandlers();
 
     const host = Actor.isAtHome() ? process.env.ACTOR_STANDBY_URL as string : 'http://localhost';
     const port = Actor.isAtHome() ? Number(process.env.ACTOR_STANDBY_PORT) : 3000;
