@@ -1,5 +1,4 @@
-import { Actor } from 'apify';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { ContentCrawlerStatus, SHUTDOWN_DRAIN_MILLIS } from '../src/const.js';
 import { createAndStartSearchCrawler } from '../src/crawlers.js';
@@ -25,7 +24,6 @@ describe('a run that shuts down', () => {
     it('lets callers finish, keeps what the rest already have, and tells the empty ones to retry', async () => {
         // Crawlee's `sleep` runs on `node:timers/promises`, which fake timers do not reach.
         SHUTDOWN_DRAIN_MILLIS.aborting = 500;
-        const exit = vi.spyOn(Actor, 'exit').mockResolvedValue(undefined as never);
         const inTime = createResponsePromise('in-time', 300);
         const partial = createResponsePromise('partial', 300);
         const empty = createResponsePromise('empty', 300);
@@ -44,7 +42,6 @@ describe('a run that shuts down', () => {
             { crawl: { requestStatus: ContentCrawlerStatus.FAILED } },
         ]);
         await expect(empty).rejects.toThrow('The run is shutting down, please retry the request.');
-        expect(exit).toHaveBeenCalledOnce();
     });
 });
 

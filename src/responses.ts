@@ -185,11 +185,15 @@ export function sendResponseIfFinished(responseId: string) {
  */
 export async function handleShutdown(event: ShutdownEvent) {
     log.warning('Standby run is shutting down', { event, inProgress: responseData.size });
-    await sleep(SHUTDOWN_DRAIN_MILLIS[event]);
+    const deadline = Date.now() + SHUTDOWN_DRAIN_MILLIS[event];
+    while (responseData.size > 0 && Date.now() < deadline) {
+        await sleep(200);
+    }
     for (const responseId of [...responseData.keys()]) {
         sendResponseError(responseId, new RunShuttingDownError());
     }
-    await Actor.exit();
+    // The SDK exits on 'aborting' and reboots on 'migrating' after this listener; exiting from inside it deadlocks
+    if (event === 'SIGTERM') await Actor.exit();
 }
 
 export function registerShutdownHandlers() {
