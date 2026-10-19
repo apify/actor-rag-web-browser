@@ -45,15 +45,15 @@ async function waitForPlaywright({ page }: PlaywrightCrawlingContext, time: numb
 }
 
 /**
- * Checks if the request should time out based on response timeout.
- * It verifies if the response data contains the responseId. If not, it sets the request's noRetry flag
- * to true and throws an error to cancel the request.
+ * Cancels a request whose caller has stopped waiting, freeing its crawler slot. Called at the
+ * boundaries that cost real time, because the shared crawlers run with the widest handler timeout
+ * the schema allows and so cannot bound a single request.
  *
- * @param {Request} request - The request object to be checked.
- * @param {string} responseId - The response ID to look for in the response data.
- * @throws {Error} Throws an error if the request times out.
+ * @throws when the response this request belongs to is gone.
  */
 function checkTimeoutAndCancelRequest(request: Request, responseId: string) {
+    if (!isActorStandby()) return;
+
     if (!responseData.has(responseId)) {
         request.noRetry = true;
         throw new Error('Timed out. Cancelling the request...');
@@ -293,7 +293,7 @@ export async function requestHandlerPlaywright(
     const { request, response, page, closeCookieModals } = context;
     const { contentScraperSettings: settings, responseId } = request.userData;
 
-    if (isActorStandby()) checkTimeoutAndCancelRequest(request, responseId);
+    checkTimeoutAndCancelRequest(request, responseId);
 
     log.info(`Processing URL: ${request.url}`);
     addTimeMeasureEvent(request.userData, 'playwright-request-start');
@@ -317,6 +317,7 @@ export async function requestHandlerPlaywright(
     if (settings.dynamicContentWaitSecs > 0) {
         await waitForDynamicContent(context, settings.dynamicContentWaitSecs * 1000);
         addTimeMeasureEvent(request.userData, 'playwright-wait-dynamic-content');
+        checkTimeoutAndCancelRequest(request, responseId);
     }
 
     if (page && settings.removeCookieWarnings) {
@@ -349,12 +350,17 @@ export async function requestHandlerPlaywright(
         addTimeMeasureEvent(request.userData, 'playwright-expand-clickable-elements');
     }
 
+    checkTimeoutAndCancelRequest(request, responseId);
+
     // Parsing the page after the dynamic content has been loaded / cookie warnings removed
     const $ = await context.parseWithCheerio();
     addTimeMeasureEvent(request.userData, 'playwright-parse-with-cheerio');
+    checkTimeoutAndCancelRequest(request, responseId);
 
     const skipped = skipUnparsableResponse($, contentType, statusCode, context);
     if (skipped) return skipped;
+
+    checkTimeoutAndCancelRequest(request, responseId);
 
     return handleContent($, ContentCrawlerTypes.PLAYWRIGHT, statusCode, headers, context);
 }
@@ -366,7 +372,7 @@ export async function requestHandlerCheerio(
     const { $, body, contentType, request, response } = context;
     const { responseId } = request.userData;
 
-    if (isActorStandby()) checkTimeoutAndCancelRequest(request, responseId);
+    checkTimeoutAndCancelRequest(request, responseId);
 
     log.info(`Processing URL: ${request.url}`);
     addTimeMeasureEvent(request.userData, 'cheerio-request-start');
@@ -387,6 +393,8 @@ export async function requestHandlerCheerio(
 
     const skipped = skipUnparsableResponse($, response.headers['content-type'], statusCode, context);
     if (skipped) return skipped;
+
+    checkTimeoutAndCancelRequest(request, responseId);
 
     return handleContent($, ContentCrawlerTypes.CHEERIO, statusCode, response.headers, context);
 }

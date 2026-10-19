@@ -4,6 +4,7 @@ import { MemoryStorage } from '@crawlee/memory-storage';
 import { Configuration } from 'crawlee';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { CrawlerKind } from '../src/const.js';
 import { ContentCrawlerStatus, ContentCrawlerTypes } from '../src/const.js';
 import { addContentCrawlRequest, createAndStartContentCrawler, failUnaffordableFetch } from '../src/crawlers.js';
 import { createResponsePromise } from '../src/responses.js';
@@ -21,7 +22,7 @@ vi.mock('../src/charging.js', () => charging);
 
 describe('Charging in normal mode', () => {
     let crawler: Awaited<ReturnType<typeof createAndStartContentCrawler>>['crawler'];
-    let crawlerKey: string;
+    let crawlerKey: CrawlerKind;
     let testServer: Server;
     const testServerPort = 3044;
     const baseUrl = `http://localhost:${testServerPort}`;
