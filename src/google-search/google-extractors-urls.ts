@@ -162,14 +162,15 @@ export const resolveGoogleRedirectUrls = async (results: OrganicResult[]): Promi
                 return result;
             }
 
-            for (let attempt = 0; attempt < MAX_RESOLVE_ATTEMPTS; attempt++) {
-                try {
-                    return { ...result, url: await resolveGoogleRedirectUrl(parsedUrl, proxyConfig) };
-                } catch (error) {
-                    log.warning('Failed to resolve Google redirect url', { error: `${error}`, url: result.url, attempt });
-                }
+            // Attempts run in parallel, each through a different proxy IP, and the first to resolve wins
+            try {
+                const attempts = Array.from({ length: MAX_RESOLVE_ATTEMPTS }, async () => resolveGoogleRedirectUrl(parsedUrl, proxyConfig));
+                return { ...result, url: await Promise.any(attempts) };
+            } catch (error) {
+                const errors = (error as AggregateError).errors.map((attemptError) => `${attemptError}`);
+                log.warning('Failed to resolve Google redirect url', { errors, url: result.url });
+                return null;
             }
-            return null;
         }),
     );
     return resolvedResults.filter((result) => result !== null);

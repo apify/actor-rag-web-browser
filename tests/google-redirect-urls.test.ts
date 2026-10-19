@@ -37,25 +37,26 @@ describe('resolving Google redirect urls', () => {
         gotScrapingMock.mockResolvedValue({ statusCode: 302, headers: { location: 'https://example.com/dest' } });
 
         expect(await resolveUrls(['https://www.google.com/goto?url=abc'])).toEqual(['https://example.com/dest']);
-        expect(gotScrapingMock).toHaveBeenCalledExactlyOnceWith(
+        expect(gotScrapingMock).toHaveBeenCalledWith(
             expect.objectContaining({ url: 'https://www.google.com/goto?url=abc', followRedirect: false }),
         );
     });
 
-    it('drops the result after retries when the response is not a redirect', async () => {
+    it('drops the result when no attempt gets a redirect', async () => {
         gotScrapingMock.mockResolvedValue({ statusCode: 403, headers: {} });
 
         expect(await resolveUrls(['https://www.google.com/goto?url=abc'])).toEqual([]);
         expect(gotScrapingMock).toHaveBeenCalledTimes(3);
     });
 
-    it('recovers on a retry after a request error', async () => {
+    it('keeps the destination of any attempt that succeeds', async () => {
         gotScrapingMock
             .mockRejectedValueOnce(new Error('ECONNREFUSED'))
+            .mockResolvedValueOnce({ statusCode: 403, headers: {} })
             .mockResolvedValueOnce({ statusCode: 302, headers: { location: 'https://example.com/dest' } });
 
         expect(await resolveUrls(['https://www.google.com/url?q=abc'])).toEqual(['https://example.com/dest']);
-        expect(gotScrapingMock).toHaveBeenCalledTimes(2);
+        expect(gotScrapingMock).toHaveBeenCalledTimes(3);
     });
 
     it('leaves no /goto urls in the results of a SERP', async () => {
