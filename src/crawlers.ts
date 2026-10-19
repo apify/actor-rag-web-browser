@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { ImpitHttpClient } from '@crawlee/impit-client';
 import { MemoryStorage } from '@crawlee/memory-storage';
 import { PlaywrightBlocker } from '@ghostery/adblocker-playwright';
-import { RequestQueue } from 'apify';
+import { Actor, RequestQueue } from 'apify';
 import {
     type CheerioAPI,
     CheerioCrawler,
@@ -30,7 +30,7 @@ import {
 } from './request-handler.js';
 import { addEmptyResultToResponse, addResultToResponse, sendResponseError, sendResponseIfFinished } from './responses.js';
 import type { ContentCrawlerOptions, ContentCrawlerUserData, Output, SearchCrawlerUserData } from './types.js';
-import { addTimeMeasureEvent, createRequest, createSearchRequest } from './utils.js';
+import { addTimeMeasureEvent, createRequest, createSearchRequest, isActorStandby } from './utils.js';
 
 const crawlers = new Map<string, CheerioCrawler | PlaywrightCrawler>();
 const client = new MemoryStorage({ persistStorage: false });
@@ -106,12 +106,16 @@ export async function createAndStartSearchCrawler(
     const crawler = new CheerioCrawler({
         ...(searchCrawlerOptions as CheerioCrawlerOptions),
         requestQueue: await RequestQueue.open(key, { storageClient: client }),
-        requestHandler: async ({ request, $: _$, addRequests }: CheerioCrawlingContext<SearchCrawlerUserData>) => {
+        requestHandler: async ({ request, $: _$, body, addRequests }: CheerioCrawlingContext<SearchCrawlerUserData>) => {
             // NOTE: we need to cast this to fix `cheerio` type errors
             addTimeMeasureEvent(request.userData!, 'cheerio-request-handler-start');
             const $ = _$ as CheerioAPI;
 
             log.info(`Search-crawler requestHandler: Processing URL: ${request.url}`);
+
+            if (request.userData.contentScraperSettings.debugMode && !isActorStandby()) {
+                await Actor.setValue(`google-serp-${request.id}-${request.retryCount}`, body, { contentType: 'text/html; charset=utf-8' });
+            }
             const organicResults = scrapeOrganicResults($);
             const resolvedResults = await resolveGoogleRedirectUrls(organicResults);
 
