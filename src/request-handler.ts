@@ -51,7 +51,7 @@ async function waitForPlaywright({ page }: PlaywrightCrawlingContext, time: numb
  *
  * @throws when the response this request belongs to is gone.
  */
-function checkTimeoutAndCancelRequest(request: Request, responseId: string) {
+export function checkTimeoutAndCancelRequest(request: Request, responseId: string) {
     if (!isActorStandby()) return;
 
     if (!responseData.has(responseId)) {

@@ -22,6 +22,7 @@ import type { CrawlerKind } from './const.js';
 import { ContentCrawlerTypes, GOOGLE_STANDARD_RESULTS_PER_PAGE } from './const.js';
 import { deduplicateResults, scrapeOrganicResults } from './google-search/google-extractors-urls.js';
 import {
+    checkTimeoutAndCancelRequest,
     failedRequestHandler,
     requestHandlerCheerio,
     requestHandlerPlaywright,
@@ -30,7 +31,6 @@ import {
 import {
     addEmptyResultToResponse,
     addResultToResponse,
-    responseData,
     sendResponseError,
     sendResponseIfFinished,
 } from './responses.js';
@@ -159,20 +159,20 @@ export async function createAndStartSearchCrawler(
             // Destructure userData for easier access (pagination fields are initialized in createSearchRequest)
             const { collectedResults, currentPage, totalPages, maxResults, actorRequestId } = request.userData;
 
+            // The caller can be gone by now: timed out, failed, or the run is moving.
+            checkTimeoutAndCancelRequest(request, request.userData.responseId);
+
             // Charged for a page of results rather than for submitting the query, so a search Google
             // refuses stays free - but before anything is enqueued, or the response could beat the charge
             // and invalidate the caller's request ID. The flag rides along with the request, so a retry
             // of this handler cannot charge the query twice.
-            // The caller can be gone by now: timed out, failed, or the run is moving.
-            if (!responseData.has(request.userData.responseId)) return;
-
             if (organicResults.length > 0 && !request.userData.isSearchChargeAttempted) {
                 request.userData.isSearchChargeAttempted = true;
                 await chargeSearch({ actorRequestId, idempotencyKey: request.uniqueKey });
             }
 
             // The charge is awaited, so they can have gone during it.
-            if (!responseData.has(request.userData.responseId)) return;
+            checkTimeoutAndCancelRequest(request, request.userData.responseId);
 
             // Merge with previously collected results and deduplicate
             const allResults = [...collectedResults, ...organicResults];
