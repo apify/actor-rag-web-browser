@@ -135,6 +135,8 @@ export function startTestServer(port = 3030): Server {
  */
 export async function stopTestServer(server: Server): Promise<void> {
     return new Promise((resolve, reject) => {
+        // `close` waits for open connections, and a crawler still fetching keeps one past the budget.
+        server.closeAllConnections();
         server.close((err) => {
             if (err) {
                 reject(err);
