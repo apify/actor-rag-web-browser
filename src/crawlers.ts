@@ -196,7 +196,6 @@ export async function createAndStartSearchCrawler(
                         collectedResults: deduplicated,
                         currentPage: nextPage,
                     },
-                    searchCrawlerOptions.proxyConfiguration,
                     nextOffset,
                 );
                 await addRequests([nextRequest]);
@@ -215,6 +214,7 @@ export async function createAndStartSearchCrawler(
                         result,
                         responseId,
                         request.userData.contentScraperSettings!,
+                        request.userData.contentProxyOptions,
                         request.userData.timeMeasures!,
                         actorRequestId,
                     );

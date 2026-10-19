@@ -37,7 +37,7 @@ describe('Charging in normal mode', () => {
             { url: `${baseUrl}/basic`, title: 'Test Page' },
             responseId,
             { debugMode: false, dynamicContentWaitSecs: 0, maxHtmlCharsToProcess: 1e6, outputFormats: ['markdown'] } as ContentScraperSettings,
-            null,
+            {},
         );
         await addContentCrawlRequest(request, responseId, crawlerKey);
         await crawler!.run();
