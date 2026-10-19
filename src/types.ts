@@ -3,7 +3,7 @@ import type { IncomingHttpHeaders } from 'node:http';
 import type { ProxyConfigurationOptions } from 'apify';
 import type { CheerioCrawlerOptions, PlaywrightCrawlerOptions } from 'crawlee';
 
-import type { ContentCrawlerTypes } from './const.js';
+import type { ContentCrawlerTypes, CrawlerKind } from './const.js';
 
 /**
  * Utility type to make specific properties of T optional.
@@ -11,6 +11,8 @@ import type { ContentCrawlerTypes } from './const.js';
  * @template K - The keys of T to make optional
  */
 type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
+
+export type ProxyOptions = ProxyConfigurationOptions & { useApifyProxy?: boolean };
 
 export type OutputFormats = 'text' | 'markdown' | 'html' | 'links';
 export type SERPProxyGroup = 'GOOGLE_SERP' | 'SHADER';
@@ -95,15 +97,18 @@ export interface ContentScraperSettings {
     outputFormats: OutputFormats[];
     removeCookieWarnings?: boolean;
     removeElementsCssSelector?: string;
+    /** Carried per request because the crawlers are shared, so they cannot be built with one. */
+    maxRequestRetries: number;
 }
 
 export type SearchCrawlerUserData = {
     maxResults: number;
     timeMeasures: TimeMeasure[];
     query: string;
-    contentCrawlerKey: string;
+    contentCrawlerKey: CrawlerKind;
     responseId: string;
     contentScraperSettings: ContentScraperSettings;
+    serpMaxRetries: number;
     // Pagination tracking
     /** Results accumulated across SERP pages, passed forward for merging */
     collectedResults: OrganicResult[];
@@ -136,7 +141,7 @@ export type ContentCrawlerUserData = {
     responseId: string;
     timeMeasures: TimeMeasure[];
     searchResult?: OrganicResult;
-    contentCrawlerKey?: string;
+    contentCrawlerKey?: CrawlerKind;
     contentScraperSettings: ContentScraperSettings;
     actorRequestId?: string;
 };
@@ -180,8 +185,8 @@ export type Output = {
 
 export type ContentCrawlerOptions = {
     type: ContentCrawlerTypes.CHEERIO,
-    crawlerOptions: CheerioCrawlerOptions
+    crawlerOptions: CheerioCrawlerOptions,
 } | {
     type: ContentCrawlerTypes.PLAYWRIGHT,
-    crawlerOptions: PlaywrightCrawlerOptions
+    crawlerOptions: PlaywrightCrawlerOptions,
 };
