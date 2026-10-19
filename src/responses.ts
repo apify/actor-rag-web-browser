@@ -1,8 +1,9 @@
-import { log } from 'apify';
+import { Actor, log } from 'apify';
 import type { RequestOptions } from 'crawlee';
 import { sleep } from 'crawlee';
 
-import { ContentCrawlerStatus } from './const.js';
+import type { ShutdownEvent } from './const.js';
+import { ContentCrawlerStatus, SHUTDOWN_DRAIN_MILLIS } from './const.js';
 import type { ContentCrawlerUserData, Output } from './types.js';
 
 type ResponseData = {
@@ -13,6 +14,13 @@ type ResponseData = {
 };
 
 export const responseData = new Map<string, ResponseData>();
+
+export class RunShuttingDownError extends Error {
+    constructor() {
+        super('The run is shutting down, please retry the request.');
+        this.name = 'RunShuttingDownError';
+    }
+}
 
 /**
  * Helper function to get response object by responseId.
@@ -122,11 +130,14 @@ function sortResultsByRank(res: ResponseData): Output[] {
 
 /**
  * Send response with error status code. If the response contains some handled requests,
- * return 200 status otherwise 500.
+ * return 200 status otherwise reject with the error.
  */
-export function sendResponseError(responseId: string, message: string) {
+export function sendResponseError(responseId: string, reason: string | Error) {
     const res = getResponse(responseId);
     if (!res) return;
+
+    const error = typeof reason === 'string' ? new Error(reason) : reason;
+    const { message } = error;
 
     if (res.timeoutId) clearTimeout(res.timeoutId);
 
@@ -148,7 +159,7 @@ export function sendResponseError(responseId: string, message: string) {
         res.resolve(sortResultsByRank(res));
     } else {
         log.error(`Response for request ${responseId} has been sent with error: ${message}`);
-        res.reject(new Error(message));
+        res.reject(error);
     }
     responseData.delete(responseId);
 }
@@ -165,36 +176,25 @@ export function sendResponseIfFinished(responseId: string) {
     }
 }
 
-export const MIGRATION_MESSAGE = 'Actor had to migrate to another server. Please, retry your request.';
-
 /**
- * Crawlee already stops taking new pages on migration and waits up to `SAFE_MIGRATION_WAIT_MILLIS`,
- * 20 seconds, for the ones in flight; `Actor.reboot()` waits for that listener. Answering sooner
- * would throw away work the crawler is still finishing, so wait a little longer than it does.
+ * A Standby run is taken down while requests are still open. The only job here is to answer whatever
+ * is left before the container dies, so that no caller is left hanging on a socket.
+ *
+ * Every shutdown event runs its own drain with its own time budget. Overlapping drains are harmless:
+ * `sendResponseError` skips answered responses and `Actor.exit` skips an exit in progress.
  */
-const MIGRATION_GRACE_MILLIS = 25_000;
-
-let migration: Promise<void> | undefined;
-
-export function isMigrating() {
-    return migration !== undefined;
+export async function handleShutdown(event: ShutdownEvent) {
+    log.warning('Standby run is shutting down', { event, inProgress: responseData.size });
+    await sleep(SHUTDOWN_DRAIN_MILLIS[event]);
+    for (const responseId of [...responseData.keys()]) {
+        sendResponseError(responseId, new RunShuttingDownError());
+    }
+    await Actor.exit();
 }
 
-/**
- * Returned so the caller can hold the move back, and kept so the second announcement joins the first
- * rather than starting a second wait.
- */
-export async function startMigration(graceMillis = MIGRATION_GRACE_MILLIS) {
-    migration ??= (async () => {
-        const deadline = Date.now() + graceMillis;
-        while (responseData.size > 0 && Date.now() < deadline) {
-            await sleep(200);
-        }
-
-        for (const responseId of [...responseData.keys()]) {
-            sendResponseError(responseId, MIGRATION_MESSAGE);
-        }
-    })();
-
-    return migration;
+export function registerShutdownHandlers() {
+    Actor.on('migrating', async () => handleShutdown('migrating'));
+    Actor.on('aborting', async () => handleShutdown('aborting'));
+    // Standby runs sometimes miss the 'aborting' event, SIGTERM is the safety net
+    process.on('SIGTERM', async () => handleShutdown('SIGTERM'));
 }

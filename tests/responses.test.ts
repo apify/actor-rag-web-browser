@@ -1,13 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { Actor } from 'apify';
+import { describe, expect, it, vi } from 'vitest';
 
-import { ContentCrawlerStatus } from '../src/const.js';
+import { ContentCrawlerStatus, SHUTDOWN_DRAIN_MILLIS } from '../src/const.js';
 import { createAndStartSearchCrawler } from '../src/crawlers.js';
 import {
     addEmptyResultToResponse,
     addResultToResponse,
     createResponsePromise,
+    handleShutdown,
     sendResponseIfFinished,
-    startMigration,
 } from '../src/responses.js';
 
 const handled = (responseId: string, url: string) => {
@@ -19,27 +20,31 @@ const handled = (responseId: string, url: string) => {
     } as never);
 };
 
-// A run moves only once, so every outcome of that one move belongs in a single test.
-describe('a run that moves to another server', () => {
+// A run shuts down only once, so every outcome of that one shutdown belongs in a single test.
+describe('a run that shuts down', () => {
     it('lets callers finish, keeps what the rest already have, and tells the empty ones to retry', async () => {
+        // Crawlee's `sleep` runs on `node:timers/promises`, which fake timers do not reach.
+        SHUTDOWN_DRAIN_MILLIS.aborting = 500;
+        const exit = vi.spyOn(Actor, 'exit').mockResolvedValue(undefined as never);
         const inTime = createResponsePromise('in-time', 300);
         const partial = createResponsePromise('partial', 300);
         const empty = createResponsePromise('empty', 300);
         const url = 'https://example.com/finished';
 
-        const moved = startMigration(500);
+        const shutdown = handleShutdown('aborting');
         handled('in-time', url);
         sendResponseIfFinished('in-time');
         handled('partial', url);
         addEmptyResultToResponse('partial', { url: 'https://example.com/pending', uniqueKey: 'pending', userData: { searchResult: { rank: 2 } } } as never);
-        await moved;
+        await shutdown;
 
         await expect(inTime).resolves.toMatchObject([{ metadata: { url } }]);
         await expect(partial).resolves.toMatchObject([
             { metadata: { url } },
             { crawl: { requestStatus: ContentCrawlerStatus.FAILED } },
         ]);
-        await expect(empty).rejects.toThrow('Actor had to migrate to another server. Please, retry your request.');
+        await expect(empty).rejects.toThrow('The run is shutting down, please retry the request.');
+        expect(exit).toHaveBeenCalledOnce();
     });
 });
 
