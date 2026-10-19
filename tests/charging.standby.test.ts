@@ -161,6 +161,7 @@ describe('Charging from standby requests', () => {
                     outputFormats: ['markdown'],
                     maxRequestRetries: 0,
                 },
+                { useApifyProxy: false },
                 null,
                 'request123',
             );
@@ -221,9 +222,11 @@ describe('Charging from standby requests', () => {
                 maxRequestRetries: 0,
             },
             serpMaxRetries: 0,
+            contentProxyOptions: { useApifyProxy: false },
+            proxyOptions: { useApifyProxy: false },
             actorRequestId: 'request123',
             ...userData,
-        }, undefined);
+        });
         request.url = `${baseUrl}${path}`;
         await addSearchRequest(request, searchCrawlerKey);
         return request.uniqueKey!;

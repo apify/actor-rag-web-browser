@@ -35,11 +35,12 @@ import {
  */
 function prepareRequest(
     input: Input,
-    searchCrawlerOptions: CheerioCrawlerOptions,
     contentCrawlerKey: CrawlerKind,
     contentScraperSettings: ContentScraperSettings,
     actorRequestId?: string,
 ) {
+    // The crawlers are shared, so the proxy a caller asked for rides on the request instead.
+    const contentProxyOptions = input.proxyConfiguration;
     if (!getMiniActor().runsSearch) {
         const { url } = (input as Input & UrlToMarkdownInput);
         if (!url) {
@@ -56,6 +57,7 @@ function prepareRequest(
             { url: interpretedUrl },
             responseId,
             contentScraperSettings,
+            contentProxyOptions,
             null,
             actorRequestId,
         );
@@ -77,6 +79,7 @@ function prepareRequest(
             { url: validatedQuery },
             responseId,
             contentScraperSettings,
+            contentProxyOptions,
             null,
             actorRequestId,
         )
@@ -88,9 +91,11 @@ function prepareRequest(
                 contentCrawlerKey,
                 contentScraperSettings,
                 serpMaxRetries: (input as Input & RagWebBrowserInput).serpMaxRetries,
+                contentProxyOptions,
+                // `checkAccess` rides along so the access check this proxy never wanted stays skipped.
+                proxyOptions: { groups: [(input as Input & RagWebBrowserInput).serpProxyGroup], checkAccess: false },
                 actorRequestId,
             },
-            searchCrawlerOptions.proxyConfiguration,
         );
 
     addTimeMeasureEvent(req.userData!, 'request-received', Date.now());
@@ -118,7 +123,6 @@ async function runSearchProcess(params: Partial<Input>, actorRequestId?: string)
 
     const { req, isUrl, responseId } = prepareRequest(
         input,
-        searchCrawlerOptions,
         contentCrawlerKey,
         contentScraperSettings,
         actorRequestId,
@@ -203,7 +207,6 @@ export async function handleSearchNormalMode(
 
     const { req, isUrl } = prepareRequest(
         input,
-        searchCrawlerOptions,
         contentCrawlerKey,
         contentScraperSettings,
     );
