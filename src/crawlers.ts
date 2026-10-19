@@ -20,7 +20,7 @@ import {
 
 import { canAfford, chargeFetch, chargeSearch } from './charging.js';
 import { ContentCrawlerTypes, GOOGLE_STANDARD_RESULTS_PER_PAGE } from './const.js';
-import { deduplicateResults, scrapeOrganicResults } from './google-search/google-extractors-urls.js';
+import { deduplicateResults, resolveGoogleRedirectUrls, scrapeOrganicResults } from './google-search/google-extractors-urls.js';
 import { getMiniActor } from './mini-actors.js';
 import {
     failedRequestHandler,
@@ -112,7 +112,8 @@ export async function createAndStartSearchCrawler(
             const $ = _$ as CheerioAPI;
 
             log.info(`Search-crawler requestHandler: Processing URL: ${request.url}`);
-            const organicResults = scrapeOrganicResults($, request.loadedUrl ?? request.url);
+            const organicResults = scrapeOrganicResults($);
+            const resolvedResults = await resolveGoogleRedirectUrls(organicResults);
 
             // Destructure userData for easier access (pagination fields are initialized in createSearchRequest)
             const { collectedResults, currentPage, totalPages, maxResults, actorRequestId } = request.userData;
@@ -121,17 +122,17 @@ export async function createAndStartSearchCrawler(
             // refuses stays free - but before anything is enqueued, or the response could beat the charge
             // and invalidate the caller's request ID. The flag rides along with the request, so a retry
             // of this handler cannot charge the query twice.
-            if (organicResults.length > 0 && !request.userData.isSearchChargeAttempted) {
+            if (resolvedResults.length > 0 && !request.userData.isSearchChargeAttempted) {
                 if (!canAfford(getMiniActor().chargeEvents.search)) failUnaffordableRequest();
                 request.userData.isSearchChargeAttempted = true;
                 await chargeSearch({ actorRequestId, idempotencyKey: request.uniqueKey });
             }
 
             // Merge with previously collected results and deduplicate
-            const allResults = [...collectedResults, ...organicResults];
+            const allResults = [...collectedResults, ...resolvedResults];
             const deduplicated = deduplicateResults(allResults);
 
-            log.info(`Page ${currentPage + 1}/${totalPages}: Extracted ${organicResults.length} results, Total unique: ${deduplicated.length}/${maxResults}`);
+            log.info(`Page ${currentPage + 1}/${totalPages}: Extracted ${resolvedResults.length} results, Total unique: ${deduplicated.length}/${maxResults}`);
 
             // Decide whether to fetch the next page
             // Continue fetching if: (1) we haven't reached maxResults AND (2) we haven't exceeded totalPages AND (3) Google returned results

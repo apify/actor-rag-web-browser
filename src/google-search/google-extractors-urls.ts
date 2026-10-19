@@ -1,23 +1,20 @@
-import type { CheerioAPI } from 'crawlee';
+import { Actor } from 'apify';
+import { type CheerioAPI, gotScraping, log, type ProxyConfiguration } from 'crawlee';
 import type { Element } from 'domhandler';
 
 import type { OrganicResult, SearchResultType } from '../types.js';
 
 // Google's click-tracking redirect endpoints, sometimes served instead of a plain result anchor.
-// Relative to the page origin; crawling them lets Google's redirect resolve to the real destination.
-const GOOGLE_REDIRECT_PATH_PREFIXES = ['/goto', '/url'];
+// Relative to the page origin; resolved to the real destination by resolveGoogleRedirectUrls.
+const GOOGLE_REDIRECT_PATHNAMES = new Set(['/goto', '/url']);
+
+// Searches always run on www.google.com (see createSearchRequest), so redirect links point there too
+const GOOGLE_ORIGIN = 'https://www.google.com';
+
+const MAX_RESOLVE_ATTEMPTS = 3;
 
 function isGoogleRedirectPath(href: string): boolean {
-    return GOOGLE_REDIRECT_PATH_PREFIXES.some((prefix) => href === prefix || href.startsWith(`${prefix}?`) || href.startsWith(`${prefix}/`));
-}
-
-/** Resolves a Google redirect href against the page it was loaded from. */
-function resolveUrl(href: string, pageUrl: string): string {
-    try {
-        return new URL(href, pageUrl).href;
-    } catch {
-        return href;
-    }
+    return GOOGLE_REDIRECT_PATHNAMES.has(href.split(/[?#]/)[0]);
 }
 
 /** Validates that a URL is absolute http/https and not one of Google's own internal search links. */
@@ -57,7 +54,7 @@ export const deduplicateResults = <T extends { title?: string; url?: string }>(r
 /**
  * Parses a single organic search result (source: @apify/google-search).
  */
-const parseResult = ($: CheerioAPI, el: Element, pageUrl: string) => {
+const parseResult = ($: CheerioAPI, el: Element) => {
     $(el).find('div.action-menu').remove();
 
     const descriptionSelector = '.VwiC3b';
@@ -65,7 +62,7 @@ const parseResult = ($: CheerioAPI, el: Element, pageUrl: string) => {
     const searchResult: OrganicResult = {
         title: $(el).find('h3').first().text() || '',
         description: ($(el).find(descriptionSelector).text() || '').trim(),
-        url: href && isGoogleRedirectPath(href) ? resolveUrl(href, pageUrl) : href,
+        url: href && isGoogleRedirectPath(href) ? new URL(href, GOOGLE_ORIGIN).href : href,
     };
 
     return searchResult;
@@ -74,11 +71,11 @@ const parseResult = ($: CheerioAPI, el: Element, pageUrl: string) => {
 /**
  * Extracts search results from the given selectors (source: @apify/google-search).
  */
-const extractResultsFromSelectors = ($: CheerioAPI, selectors: string[], pageUrl: string) => {
+const extractResultsFromSelectors = ($: CheerioAPI, selectors: string[]) => {
     const searchResults: OrganicResult[] = [];
     const selector = selectors.join(', ');
     for (const resultEl of $(selector)) {
-        const results = $(resultEl).map((_i, el) => parseResult($, el as Element, pageUrl)).toArray();
+        const results = $(resultEl).map((_i, el) => parseResult($, el as Element)).toArray();
         for (const result of results) {
             // Only include results with both title and a valid URL
             // URL validation filters out Google's internal search links and malformed URLs
@@ -102,7 +99,7 @@ const areTheResultsSuggestions = ($: CheerioAPI) => {
 /**
  * Extracts organic search results from the given Cheerio instance (source: @apify/google-search).
  */
-export const scrapeOrganicResults = ($: CheerioAPI, pageUrl: string): OrganicResult[] => {
+export const scrapeOrganicResults = ($: CheerioAPI): OrganicResult[] => {
     const resultSelectors2023January = [
         '.hlcw0c', // Top result with site links
         '.g.Ww4FFb', // General search results
@@ -113,7 +110,7 @@ export const scrapeOrganicResults = ($: CheerioAPI, pageUrl: string): OrganicRes
         '.sATSHe', // another new selector in March 2025
     ];
 
-    const searchResults = extractResultsFromSelectors($, resultSelectors2023January, pageUrl);
+    const searchResults = extractResultsFromSelectors($, resultSelectors2023January);
     const deduplicatedResults = deduplicateResults(searchResults);
     let resultType: SearchResultType = 'ORGANIC';
     if (areTheResultsSuggestions($)) {
@@ -123,4 +120,57 @@ export const scrapeOrganicResults = ($: CheerioAPI, pageUrl: string): OrganicRes
         ...result,
         resultType,
     }));
+};
+
+const parseGoogleRedirectUrl = (url: string): URL | null => {
+    let parsedUrl: URL;
+    try {
+        parsedUrl = new URL(url);
+    } catch {
+        return null;
+    }
+    if (parsedUrl.origin !== GOOGLE_ORIGIN || !GOOGLE_REDIRECT_PATHNAMES.has(parsedUrl.pathname)) {
+        return null;
+    }
+    return parsedUrl;
+};
+
+const resolveGoogleRedirectUrl = async (parsedUrl: URL, proxyConfig: ProxyConfiguration | undefined): Promise<string> => {
+    const response = await gotScraping({
+        url: parsedUrl.toString(),
+        followRedirect: false,
+        proxyUrl: await proxyConfig?.newUrl(),
+        timeout: { request: 10_000 },
+    });
+    const location: unknown = response?.headers?.location;
+    if (typeof location !== 'string') {
+        throw new Error(`location header not present in the redirect response (status ${response?.statusCode})`);
+    }
+    return location;
+};
+
+/**
+ * Replaces Google's redirect urls (/goto and /url) with their destination, by making direct requests to Google and following the location header.
+ */
+export const resolveGoogleRedirectUrls = async (results: OrganicResult[]): Promise<OrganicResult[]> => {
+    const proxyConfig = await Actor.createProxyConfiguration({ checkAccess: false });
+
+    const resolvedResults = await Promise.all(
+        results.map(async (result) => {
+            const parsedUrl = result.url && parseGoogleRedirectUrl(result.url);
+            if (!parsedUrl) {
+                return result;
+            }
+
+            for (let attempt = 0; attempt < MAX_RESOLVE_ATTEMPTS; attempt++) {
+                try {
+                    return { ...result, url: await resolveGoogleRedirectUrl(parsedUrl, proxyConfig) };
+                } catch (error) {
+                    log.warning('Failed to resolve Google redirect url', { error: `${error}`, url: result.url, attempt });
+                }
+            }
+            return null;
+        }),
+    );
+    return resolvedResults.filter((result) => result !== null);
 };
