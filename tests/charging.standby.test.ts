@@ -1,6 +1,6 @@
 import type { Server } from 'node:http';
 
-import type { CheerioCrawlerOptions } from 'crawlee';
+import { type CheerioCrawlerOptions, getRequestId, type RequestOptions } from 'crawlee';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CrawlerKind } from '../src/const.js';
@@ -15,7 +15,7 @@ import { processStandbyInput } from '../src/input.js';
 import { createResponsePromise } from '../src/responses.js';
 import { createServer } from '../src/server.js';
 import type { SearchCrawlerUserData } from '../src/types.js';
-import { createRequest, createSearchRequest } from '../src/utils.js';
+import { createRequest, createSearchRequest, randomId } from '../src/utils.js';
 import { MARKDOWN_DOCUMENT, startTestServer, stopTestServer } from './helpers/server.js';
 
 const charging = vi.hoisted(() => ({
@@ -26,6 +26,12 @@ const charging = vi.hoisted(() => ({
 
 vi.mock('../src/charging.js', () => charging);
 
+// Every test here stands in for a request served by a Standby run.
+vi.mock(import('../src/utils.js'), async (importOriginal) => ({
+    ...await importOriginal(),
+    isActorStandby: () => true,
+}));
+
 describe('Charging from standby requests', () => {
     // The Actor's own search crawler routes through Apify Proxy, which cannot reach the test server.
     const searchCrawlerOptions: CheerioCrawlerOptions = {
@@ -35,7 +41,6 @@ describe('Charging from standby requests', () => {
     };
     let searchCrawlerKey: CrawlerKind;
     let searchCrawler: Awaited<ReturnType<typeof createAndStartSearchCrawler>>['crawler'];
-    let contentCrawler: Awaited<ReturnType<typeof createAndStartContentCrawler>>['crawler'];
     let contentCrawlerKey: CrawlerKind;
     let standbyServer: Server;
     const standbyServerPort = 3001;
@@ -60,9 +65,7 @@ describe('Charging from standby requests', () => {
         searchCrawler = search.crawler;
         searchCrawlerKey = search.key;
 
-        const cheerioCrawler = contentCrawlers.find(({ type }) => type === ContentCrawlerTypes.CHEERIO)!;
-        contentCrawler = cheerioCrawler.crawler;
-        contentCrawlerKey = cheerioCrawler.key;
+        contentCrawlerKey = contentCrawlers.find(({ type }) => type === ContentCrawlerTypes.CHEERIO)!.key;
 
         standbyServer = await new Promise<Server>((resolve) => {
             const server = createServer().listen(standbyServerPort, () => resolve(server));
@@ -127,13 +130,13 @@ describe('Charging from standby requests', () => {
     // Standing in for the real case, where Crawlee's handler timeout fires while the charge is in
     // flight: a charge has gone out, its outcome is unknown, and the handler is retried anyway.
     it('does not send a second charge when the handler is retried after one went out', async () => {
-        const retriesBefore = contentCrawler!.stats.state.requestsRetries;
         charging.chargeFetch.mockRejectedValueOnce(new Error('handler failed right after charging'));
 
         const response = await fetch(`${standbyUrl}/search?query=${baseUrl}/basic`);
 
         expect(response.status).toBe(200);
-        expect(contentCrawler!.stats.state.requestsRetries).toBe(retriesBefore + 1);
+        // The first attempt failed, so a handled page means the handler was retried.
+        expect((await response.json())[0].crawl.requestStatus).toBe(ContentCrawlerStatus.HANDLED);
         expect(charging.chargeFetch).toHaveBeenCalledOnce();
     });
 
@@ -208,11 +211,11 @@ describe('Charging from standby requests', () => {
      * Submits a search request straight to the search crawler, pointed at a stand-in result page on the
      * test server so that the crawler can be exercised without reaching Google.
      */
-    async function submitSearch(path: string, userData: Partial<SearchCrawlerUserData> = {}) {
+    async function submitSearch(path: string, userData: Partial<SearchCrawlerUserData> = {}, { waiting = true } = {}) {
         const request = createSearchRequest({
             query: 'hello world',
             maxResults: 1,
-            responseId: 'response123',
+            responseId: randomId(),
             contentCrawlerKey,
             contentScraperSettings: {
                 debugMode: false,
@@ -228,39 +231,57 @@ describe('Charging from standby requests', () => {
             ...userData,
         });
         request.url = `${baseUrl}${path}`;
+        // A search always has a caller waiting on it, unless that caller has gone.
+        const response = waiting ? createResponsePromise(request.userData!.responseId, 30) : undefined;
+        response?.catch(() => undefined);
         await addSearchRequest(request, searchCrawlerKey);
-        return request.uniqueKey!;
+        return { request, response };
+    }
+
+    /**
+     * Waits until the search crawler is done with the request, whether it was handled or failed. For a
+     * search that never reaches the content crawler, so has no response to wait on.
+     */
+    async function waitUntilHandled(request: RequestOptions) {
+        await vi.waitFor(async () => {
+            expect((await searchCrawler!.requestQueue!.getRequest(getRequestId(request.uniqueKey!)))?.handledAt).toBeDefined();
+        }, { timeout: 10_000 });
     }
 
     it('charges one search once Google has answered, attributed to the calling request', async () => {
-        const uniqueKey = await submitSearch('/serp');
+        const { request, response } = await submitSearch('/serp');
 
-        // The stand-in result page links to a page of its own, so a fetch means the search is done with.
-        await vi.waitFor(() => expect(charging.chargeFetch).toHaveBeenCalled(), { timeout: 10_000 });
-        expect(charging.chargeSearch).toHaveBeenCalledExactlyOnceWith({ actorRequestId: 'request123', idempotencyKey: uniqueKey });
+        await response;
+        expect(charging.chargeSearch).toHaveBeenCalledExactlyOnceWith({ actorRequestId: 'request123', idempotencyKey: request.uniqueKey });
+    });
+
+    it('does not charge for a search whose caller has already gone', async () => {
+        const { request } = await submitSearch('/serp', {}, { waiting: false });
+
+        await waitUntilHandled(request);
+        expect(charging.chargeSearch).not.toHaveBeenCalled();
+        expect(charging.chargeFetch).not.toHaveBeenCalled();
     });
 
     it('does not charge for a search that Google refuses with an empty page', async () => {
-        const finishedBefore = searchCrawler!.stats.state.requestsFinished;
+        const { request } = await submitSearch('/serp-empty');
 
-        await submitSearch('/serp-empty');
-
-        await vi.waitFor(() => expect(searchCrawler!.stats.state.requestsFinished).toBe(finishedBefore + 1), { timeout: 10_000 });
+        await waitUntilHandled(request);
         expect(charging.chargeSearch).not.toHaveBeenCalled();
     });
 
     it('does not charge for a search that Google never answers', async () => {
-        await submitSearch('/serp-error');
+        const { request } = await submitSearch('/serp-error');
 
-        await vi.waitFor(() => expect(searchCrawler!.stats.state.requestsFailed).toBe(1), { timeout: 10_000 });
+        await waitUntilHandled(request);
         expect(charging.chargeSearch).not.toHaveBeenCalled();
     });
 
     // The flag is what a request carries after a charge for it has already gone out.
     it('does not charge again for a query already marked as charged', async () => {
-        await submitSearch('/serp', { isSearchChargeAttempted: true });
+        const { response } = await submitSearch('/serp', { isSearchChargeAttempted: true });
 
-        await vi.waitFor(() => expect(charging.chargeFetch).toHaveBeenCalled(), { timeout: 10_000 });
+        await response;
         expect(charging.chargeSearch).not.toHaveBeenCalled();
     });
 });
