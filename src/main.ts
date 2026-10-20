@@ -16,9 +16,8 @@ await Actor.init();
 const originalInput = await Actor.getInput<Partial<Input>>() ?? {} as Input;
 
 // Process-wide, so it follows the run's input: a caller's `debugMode` must not reach other callers.
-// A multi-tenant Standby run is ours, so we keep its debug logs.
-const isMultiTenantStandby = isActorStandby() && getMiniActor().standbyTenancy === 'MULTI_TENANT';
-log.setLevel(originalInput.debugMode || isMultiTenantStandby ? log.LEVELS.DEBUG : log.LEVELS.INFO);
+// A Standby run is ours, so we keep its debug logs.
+log.setLevel(originalInput.debugMode || isActorStandby() ? log.LEVELS.DEBUG : log.LEVELS.INFO);
 
 if (isActorStandby()) {
     log.info('Actor is running in the STANDBY mode.');

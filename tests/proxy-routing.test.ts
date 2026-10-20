@@ -14,6 +14,13 @@ import { parseParameters } from '../src/utils.js';
 
 process.env.ACTOR_FULL_NAME = 'apify/rag-web-browser';
 
+// Charging needs `Actor.init()`, which these tests skip; what they check does not depend on it.
+vi.mock('../src/charging.js', () => ({
+    canAfford: () => true,
+    chargeSearch: async () => undefined,
+    chargeFetch: async () => undefined,
+}));
+
 // A custom proxy keeps `Actor.createProxyConfiguration` off the network.
 const ACTOR_PROXY = { useApifyProxy: false, proxyUrls: ['http://actor-default.invalid:8000'] };
 const inputFor = async (params = '', proxy: ProxyOptions = ACTOR_PROXY) => processInput(

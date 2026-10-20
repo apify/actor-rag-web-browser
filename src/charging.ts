@@ -8,7 +8,7 @@ import { isActorStandby } from './utils.js';
 const CHARGE_TIMEOUT_MILLIS = 5_000;
 
 export interface ChargeContext {
-    /** ID of the live Standby request, which identifies the caller to bill in a multi-tenant Standby run. */
+    /** ID of the live Standby request, which identifies the caller to bill in a Standby run. */
     actorRequestId?: string;
     /**
      * Identifies the charge to the platform, which ignores a key it has already seen. Crawlee retries a
@@ -19,28 +19,11 @@ export interface ChargeContext {
 }
 
 /**
- * Whether the current run is billed per event. Charging is a no-op otherwise, so one build works both
- * before and after an Actor is switched over to pay-per-event pricing.
- */
-function isPayPerEvent(): boolean {
-    try {
-        return Actor.getChargingManager().getPricingInfo().isPayPerEvent;
-    } catch {
-        // `getPricingInfo` throws until `Actor.init()` has initialized the charging manager.
-        return false;
-    }
-}
-
-function isMultiTenantStandby(): boolean {
-    return isActorStandby() && getMiniActor().standbyTenancy === 'MULTI_TENANT';
-}
-
-/**
  * Whether the run's `maxTotalChargeUsd` budget covers one more of the given event. The budget is set by the user who
- * owns the run, so a multi-tenant Standby run, which is ours, has none to check.
+ * owns the run, so a Standby run, which is ours, has none to check.
  */
 export function canAfford(eventName: string | undefined): boolean {
-    if (!eventName || !isPayPerEvent() || isMultiTenantStandby()) return true;
+    if (!eventName || isActorStandby()) return true;
 
     return Actor.getChargingManager().calculateMaxEventChargeCountWithinLimit(eventName) >= 1;
 }
@@ -58,7 +41,7 @@ async function chargeRunOwner(eventName: string): Promise<void> {
  * Charges the caller of a live STANDBY request by POSTing to the platform charge endpoint with the ID
  * of that request.
  *
- * This exists for multi-tenant Standby, where one run serves many callers and the request ID is the only
+ * This exists for Standby, where one run serves many callers and the request ID is the only
  * thing telling the platform which of them to bill.
  *
  * The request ID is only valid while its HTTP request is in flight, so this must be awaited before the
@@ -102,21 +85,21 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMillis: number): Promi
 }
 
 /**
- * Charges a single pay-per-event event, unless the event is not priced or the Actor is not on
- * pay-per-event pricing. Never throws - a request is served even when we fail to charge for it.
+ * Charges a single pay-per-event event, unless the event is not priced. Never throws - a request is
+ * served even when we fail to charge for it.
  */
 async function charge(eventName: string | undefined, { actorRequestId, idempotencyKey }: ChargeContext): Promise<void> {
-    if (!eventName || !isPayPerEvent()) return;
+    if (!eventName) return;
 
     // Reached only when a request bypassed the Standby controller, which sets the header on everything
-    // it proxies. The multi-tenant run is ours, so charging its owner instead would land on us.
-    if (isMultiTenantStandby() && !actorRequestId) {
+    // it proxies. The Standby run is ours, so charging its owner instead would land on us.
+    if (isActorStandby() && !actorRequestId) {
         log.warning(`Skipping the standby charge for the \`${eventName}\` event: the x-actor-request-id header is missing, so the caller cannot be identified.`);
         return;
     }
 
     try {
-        await (isMultiTenantStandby() && actorRequestId
+        await (isActorStandby() && actorRequestId
             ? chargeStandbyCaller(eventName, actorRequestId, idempotencyKey)
             : chargeRunOwner(eventName));
     } catch (err) {
