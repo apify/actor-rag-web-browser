@@ -145,6 +145,21 @@ const parseGoogleRedirectUrl = (url: string): URL | null => {
     return parsedUrl;
 };
 
+/** /url links carry their destination in the q (or url) parameter, so it can be read without asking Google. */
+const readUrlDestination = (parsedUrl: URL): string | null => {
+    const param = parsedUrl.searchParams.get('q') ?? parsedUrl.searchParams.get('url');
+    if (parsedUrl.pathname !== '/url' || !param) {
+        return null;
+    }
+    let destination: URL;
+    try {
+        destination = new URL(param);
+    } catch {
+        return null;
+    }
+    return isValidUrl(destination.href) && !isGoogleInterstitial(destination) ? destination.href : null;
+};
+
 const resolveGoogleRedirectUrl = async (parsedUrl: URL, proxyConfig: ProxyConfiguration | undefined): Promise<string> => {
     const response = await gotScraping({
         url: parsedUrl.toString(),
@@ -166,7 +181,8 @@ const resolveGoogleRedirectUrl = async (parsedUrl: URL, proxyConfig: ProxyConfig
 };
 
 /**
- * Replaces Google's redirect urls (/goto and /url) with their destination, read from the location header of Google's redirect response.
+ * Replaces Google's redirect urls (/goto and /url) with their destination.
+ * /url links are read locally; /goto links (and /url without a usable destination) from Google's redirect response.
  */
 export const resolveGoogleRedirectUrls = async (results: OrganicResult[]): Promise<OrganicResult[]> => {
     const proxyConfig = await Actor.createProxyConfiguration({ checkAccess: false });
@@ -176,6 +192,10 @@ export const resolveGoogleRedirectUrls = async (results: OrganicResult[]): Promi
             const parsedUrl = result.url && parseGoogleRedirectUrl(result.url);
             if (!parsedUrl) {
                 return result;
+            }
+            const urlDestination = readUrlDestination(parsedUrl);
+            if (urlDestination) {
+                return { ...result, url: urlDestination };
             }
 
             // Attempts run in parallel, each through a different proxy IP, and the first to resolve wins

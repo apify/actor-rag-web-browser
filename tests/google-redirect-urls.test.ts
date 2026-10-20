@@ -55,8 +55,25 @@ describe('resolving Google redirect urls', () => {
             .mockResolvedValueOnce({ statusCode: 403, headers: {} })
             .mockResolvedValueOnce({ statusCode: 302, headers: { location: 'https://example.com/dest' } });
 
-        expect(await resolveUrls(['https://www.google.com/url?q=abc'])).toEqual(['https://example.com/dest']);
+        expect(await resolveUrls(['https://www.google.com/goto?url=abc'])).toEqual(['https://example.com/dest']);
         expect(gotScrapingMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('reads /url destinations from their parameters without requesting Google', async () => {
+        const urls = [
+            'https://www.google.com/url?q=https://example.com/from-q&sa=U',
+            'https://www.google.com/url?url=https%3A%2F%2Fexample.com%2Ffrom-url',
+        ];
+
+        expect(await resolveUrls(urls)).toEqual(['https://example.com/from-q', 'https://example.com/from-url']);
+        expect(gotScrapingMock).not.toHaveBeenCalled();
+    });
+
+    it('asks Google when the /url parameter is not a valid url', async () => {
+        gotScrapingMock.mockResolvedValue({ statusCode: 302, headers: { location: 'https://example.com/dest' } });
+
+        expect(await resolveUrls(['https://www.google.com/url?q=abc', 'https://www.google.com/url?q=https://www.google.com/sorry/index']))
+            .toEqual(['https://example.com/dest', 'https://example.com/dest']);
     });
 
     it('resolves http redirect urls too', async () => {
