@@ -143,21 +143,21 @@ describe('findActorTipInResults', () => {
         vi.restoreAllMocks();
     });
 
-    it('recommends the site that more than half of the results come from, even when another site ranks first', async () => {
+    it('recommends a site that at least half of the results come from, even when another site ranks first', async () => {
         mockResults(
             { url: 'https://www.facebook.com/apify', rank: 1 },
             { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', rank: 2 },
             { url: 'https://www.youtube.com/watch?v=yPYZpwSpKmA', rank: 3 },
+            { url: 'https://example.com/', rank: 4 },
         );
 
         expect((await findActorTipInResults())?.message).toContain('YouTube Scraper');
     });
 
-    it('recommends the site of the highest-ranked listed result when no site has more than half', async () => {
+    it('recommends the site of the highest-ranked listed result when no site has half of the results', async () => {
         // In the order the pages finished loading, which is how they are stored.
         mockResults(
             { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', rank: 3 },
-            { url: 'https://example.org/', rank: 4 },
             { url: 'https://www.facebook.com/apify', rank: 2 },
             { url: 'https://example.com/', rank: 1 },
         );
@@ -165,12 +165,24 @@ describe('findActorTipInResults', () => {
         expect((await findActorTipInResults())?.message).toContain('Facebook Posts Scraper');
     });
 
-    it('does not count exactly half as more than half, so the highest-ranked result decides', async () => {
+    it('recommends the site of the higher-ranked result when two sites each have half of the results', async () => {
+        mockResults(
+            { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', rank: 1 },
+            { url: 'https://www.facebook.com/apify', rank: 2 },
+            { url: 'https://www.facebook.com/nike', rank: 3 },
+            { url: 'https://www.youtube.com/watch?v=yPYZpwSpKmA', rank: 4 },
+        );
+
+        expect((await findActorTipInResults())?.message).toContain('YouTube Scraper');
+    });
+
+    it('counts the results from unlisted sites toward the half', async () => {
         mockResults(
             { url: 'https://www.facebook.com/apify', rank: 1 },
             { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', rank: 2 },
             { url: 'https://www.youtube.com/watch?v=yPYZpwSpKmA', rank: 3 },
             { url: 'https://example.com/', rank: 4 },
+            { url: 'https://example.org/', rank: 5 },
         );
 
         expect((await findActorTipInResults())?.message).toContain('Facebook Posts Scraper');

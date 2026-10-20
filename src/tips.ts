@@ -169,7 +169,7 @@ export async function findActorTipInResults(): Promise<ActorTip | null> {
         const { items } = await dataset.getData({ fields: ['metadata', 'searchResult'] });
         const rules = sortResultsByRank(items).map(({ metadata }) => findRuleForUrl(new URL(metadata.url)));
         const countOf = (rule: SiteRule) => rules.filter((r) => r === rule).length;
-        const rule = rules.find((r) => r && countOf(r) > rules.length / 2) ?? rules.find((r) => r);
+        const rule = rules.find((r) => r && countOf(r) >= rules.length / 2) ?? rules.find((r) => r);
         if (rule) return createTip(rule);
     } catch (err) {
         log.warning(`Failed to look for a tip among the results: ${err instanceof Error ? err.message : String(err)}`);
