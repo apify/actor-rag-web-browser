@@ -44,20 +44,17 @@ function isValidUrl(url: string): boolean {
 }
 
 /**
- * Deduplicates search results based on their title and URL (source @apify/google-search).
+ * Deduplicates search results by URL; a page listed under different titles is still one page.
  */
-export const deduplicateResults = <T extends { title?: string; url?: string }>(results: T[]): T[] => {
-    const deduplicatedResults = [];
-    const resultHashes = new Set();
+export const deduplicateResults = <T extends { url?: string }>(results: T[]): T[] => {
+    const uniqueResults: T[] = [];
+    const seenUrls = new Set<string | undefined>();
     for (const result of results) {
-        // date defaults to now so it is not stable
-        const hash = JSON.stringify({ title: result.title, url: result.url });
-        if (!resultHashes.has(hash)) {
-            deduplicatedResults.push(result);
-            resultHashes.add(hash);
-        }
+        if (seenUrls.has(result.url)) continue;
+        seenUrls.add(result.url);
+        uniqueResults.push(result);
     }
-    return deduplicatedResults;
+    return uniqueResults;
 };
 
 /**
