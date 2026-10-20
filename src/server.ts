@@ -1,21 +1,14 @@
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { log } from 'crawlee';
 import express, { type Request, type Response } from 'express';
 
-import { Routes } from './const.js';
-import { McpServer } from './mcp/server.js';
 import { getMiniActor } from './mini-actors.js';
 import { handleSearchRequest } from './search.js';
-import { extractActorRequestId } from './utils.js';
 
 export function createServer(): express.Express {
     const app = express();
     const miniActor = getMiniActor();
-    const mcpServer = new McpServer();
-    let transport: SSEServerTransport;
 
-    const HELP_MESSAGE = `Send a GET request to ${process.env.ACTOR_STANDBY_URL}${miniActor.helpRoute}`
-        + ` or to ${process.env.ACTOR_STANDBY_URL}/message to use Model context protocol.`;
+    const HELP_MESSAGE = `Send a GET request to ${process.env.ACTOR_STANDBY_URL}${miniActor.helpRoute}.`;
 
     app.get('/', async (req, res) => {
         log.info(`Received GET message at: ${req.url}`);
@@ -31,18 +24,6 @@ export function createServer(): express.Express {
         log.info(`Received HEAD message at: ${req.url}`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end();
-    });
-
-    app.get(Routes.SSE, async (req: Request, res: Response) => {
-        log.info(`Received GET message at: ${req.url}`);
-        transport = new SSEServerTransport(Routes.MESSAGE, res);
-        const actorRequestId = extractActorRequestId(req.headers);
-        await mcpServer.connect(transport, actorRequestId);
-    });
-
-    app.post(Routes.MESSAGE, async (req: Request, res: Response) => {
-        log.info(`Received POST message at: ${req.url}`);
-        await transport.handlePostMessage(req, res);
     });
 
     // Catch-all for undefined routes
