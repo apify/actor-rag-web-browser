@@ -6,8 +6,6 @@ export enum ContentCrawlerStatus {
 
 export enum Routes {
     SEARCH = '/search',
-    SSE = '/sse',
-    MESSAGE = '/message',
 
     // Same as SEARCH, but only for url-to-markdown mini-actor
     FETCH = '/fetch',

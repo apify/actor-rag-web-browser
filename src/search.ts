@@ -175,21 +175,6 @@ export async function handleSearchRequest(request: IncomingMessage, response: Se
 }
 
 /**
- * Handles the model context protocol scenario (non-HTTP scenario).
- * Uses the same runSearchProcess function but just returns the results as a promise.
- */
-export async function handleModelContextProtocol(params: Partial<Input>, actorRequestId?: string): Promise<Output[]> {
-    try {
-        log.info(`Received parameters: ${JSON.stringify(params)}`);
-        return await runSearchProcess(params, actorRequestId);
-    } catch (e) {
-        const error = e as Error;
-        log.error(`UserInputError occurred: ${error.message}`);
-        return [{ text: error.message }] as Output[];
-    }
-}
-
-/**
  * Runs the search and scrape in normal mode.
  */
 export async function handleSearchNormalMode(

@@ -29,7 +29,6 @@ export interface MiniActor {
     name: string;
     runsSearch: boolean;
     inputSchema: InputSchema;
-    mcpServerName: string;
     route: Routes;
     helpRoute: string;
     chargeEvents: ChargeEvents;
@@ -49,7 +48,6 @@ const MINI_ACTORS: Record<string, MiniActor> = {
         name: 'rag-web-browser',
         runsSearch: true,
         inputSchema: ragWebBrowserInputSchema,
-        mcpServerName: 'mcp-server-rag-web-browser',
         route: Routes.SEARCH,
         helpRoute: '/search?query=hello+world',
         standbyTenancy: 'SINGLE_TENANT',
@@ -65,7 +63,6 @@ const MINI_ACTORS: Record<string, MiniActor> = {
         name: 'url-to-markdown',
         runsSearch: false,
         inputSchema: urlToMarkdownInputSchema,
-        mcpServerName: 'mcp-server-url-to-markdown',
         route: Routes.FETCH,
         helpRoute: '/fetch?url=https://example.com',
         standbyTenancy: 'MULTI_TENANT',
