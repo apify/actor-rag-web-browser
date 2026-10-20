@@ -19,24 +19,11 @@ export interface ChargeContext {
 }
 
 /**
- * Whether the current run is billed per event. Charging is a no-op otherwise, so one build works both
- * before and after an Actor is switched over to pay-per-event pricing.
- */
-function isPayPerEvent(): boolean {
-    try {
-        return Actor.getChargingManager().getPricingInfo().isPayPerEvent;
-    } catch {
-        // `getPricingInfo` throws until `Actor.init()` has initialized the charging manager.
-        return false;
-    }
-}
-
-/**
  * Whether the run's `maxTotalChargeUsd` budget covers one more of the given event. The budget is set by the user who
  * owns the run, so a Standby run, which is ours, has none to check.
  */
 export function canAfford(eventName: string | undefined): boolean {
-    if (!eventName || !isPayPerEvent() || isActorStandby()) return true;
+    if (!eventName || isActorStandby()) return true;
 
     return Actor.getChargingManager().calculateMaxEventChargeCountWithinLimit(eventName) >= 1;
 }
@@ -98,11 +85,11 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMillis: number): Promi
 }
 
 /**
- * Charges a single pay-per-event event, unless the event is not priced or the Actor is not on
- * pay-per-event pricing. Never throws - a request is served even when we fail to charge for it.
+ * Charges a single pay-per-event event, unless the event is not priced. Never throws - a request is
+ * served even when we fail to charge for it.
  */
 async function charge(eventName: string | undefined, { actorRequestId, idempotencyKey }: ChargeContext): Promise<void> {
-    if (!eventName || !isPayPerEvent()) return;
+    if (!eventName) return;
 
     // Reached only when a request bypassed the Standby controller, which sets the header on everything
     // it proxies. The Standby run is ours, so charging its owner instead would land on us.

@@ -7,7 +7,6 @@ import { ContentCrawlerTypes } from '../src/const.js';
 const mocks = vi.hoisted(() => ({
     charge: vi.fn(),
     getEnv: vi.fn(),
-    getPricingInfo: vi.fn(),
     calculateMaxEventChargeCountWithinLimit: vi.fn(),
 }));
 
@@ -16,7 +15,6 @@ vi.mock('apify', () => ({
         charge: mocks.charge,
         getEnv: mocks.getEnv,
         getChargingManager: () => ({
-            getPricingInfo: mocks.getPricingInfo,
             calculateMaxEventChargeCountWithinLimit: mocks.calculateMaxEventChargeCountWithinLimit,
         }),
     },
@@ -38,7 +36,6 @@ describe('Pay-per-event charging', () => {
         vi.clearAllMocks();
         process.env.ACTOR_FULL_NAME = 'apify/rag-web-browser';
         mocks.getEnv.mockReturnValue(NORMAL_ENV);
-        mocks.getPricingInfo.mockReturnValue({ isPayPerEvent: true });
         // No budget limit, as for a run without `maxTotalChargeUsd`, unless a test is about the budget.
         mocks.calculateMaxEventChargeCountWithinLimit.mockReturnValue(Infinity);
         fetchMock = vi.fn().mockResolvedValue({ ok: true, text: async () => '' });
@@ -47,32 +44,6 @@ describe('Pay-per-event charging', () => {
 
     afterEach(() => {
         vi.unstubAllGlobals();
-    });
-
-    // A build ships before the pricing model is switched over, and has to stay quiet until it does.
-    it('charges for nothing while the Actor is not on pay-per-event pricing', async () => {
-        mocks.getPricingInfo.mockReturnValue({ isPayPerEvent: false });
-
-        await chargeSearch(CONTEXT);
-        await chargeFetch(ContentCrawlerTypes.CHEERIO, CONTEXT);
-        mocks.getEnv.mockReturnValue(STANDBY_ENV);
-        await chargeFetch(ContentCrawlerTypes.PLAYWRIGHT, { ...CONTEXT, actorRequestId: 'request123' });
-
-        expect(mocks.charge).not.toHaveBeenCalled();
-        expect(fetchMock).not.toHaveBeenCalled();
-    });
-
-    // The pricing lookup throws until `Actor.init()` has run, and a failed charge must never take a
-    // request down with it.
-    it('serves the request even when the pricing of the Actor cannot be read', async () => {
-        mocks.getPricingInfo.mockImplementation(() => {
-            throw new Error('ChargingManager is not initialized');
-        });
-
-        await expect(chargeSearch(CONTEXT)).resolves.toBeUndefined();
-        await expect(chargeFetch(ContentCrawlerTypes.CHEERIO, CONTEXT)).resolves.toBeUndefined();
-        expect(canAfford('search')).toBe(true);
-        expect(mocks.charge).not.toHaveBeenCalled();
     });
 
     describe('in normal mode', () => {
