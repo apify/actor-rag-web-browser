@@ -3,7 +3,7 @@
 ## What this repo is
 One codebase builds two Actors: RAG Web Browser and URL to Markdown (`actors/`). `ACTOR_FULL_NAME` picks which one runs, through `src/mini-actors.ts`. Each runs in normal mode or in Standby mode.
 
-The two Actors differ in whether they run a search, their Standby tenancy and what they charge for. All of it is set per Actor in `MINI_ACTORS` (`src/mini-actors.ts`); read it before changing anything that depends on which Actor is running.
+The two Actors differ in whether they run a search and what they charge for. All of it is set per Actor in `MINI_ACTORS` (`src/mini-actors.ts`); read it before changing anything that depends on which Actor is running.
 
 ## Commands
 - `pnpm build`, `pnpm lint`, `pnpm test`: the same three steps CI runs.
@@ -13,7 +13,7 @@ The two Actors differ in whether they run a search, their Standby tenancy and wh
 ## Charging
 - Every event is pay-per-event. Only a page that fails to load is free.
 - Charge before storing a result or sending a response.
-- The run's `maxTotalChargeUsd` budget only applies when the user owns the run: a normal run or single-tenant Standby. Multi-tenant Standby bills each caller directly.
+- The run's `maxTotalChargeUsd` budget only applies to normal runs, which the user owns. Standby runs are multi-tenant and bill each caller directly.
 
 ## Tests
 - Crawler tests use the local server in `tests/helpers/server.ts`, never real websites.

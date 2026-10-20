@@ -6,6 +6,7 @@ import {
     describe,
     expect,
     it,
+    vi,
 } from 'vitest';
 
 import { ContentCrawlerStatus } from '../src/const.js';
@@ -20,6 +21,13 @@ import {
     startTestServer,
     stopTestServer,
 } from './helpers/server.js';
+
+// Charging needs `Actor.init()`, which these tests skip; what they check does not depend on it.
+vi.mock('../src/charging.js', () => ({
+    canAfford: () => true,
+    chargeSearch: async () => undefined,
+    chargeFetch: async () => undefined,
+}));
 
 describe('Standby RAG tests', () => {
     let browserServer: Server;
