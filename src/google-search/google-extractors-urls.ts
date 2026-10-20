@@ -9,12 +9,21 @@ import type { OrganicResult, SearchResultType } from '../types.js';
 const GOOGLE_REDIRECT_PATHNAMES = new Set(['/goto', '/url']);
 
 // Searches always run on www.google.com (see createSearchRequest), so redirect links point there too
-const GOOGLE_ORIGIN = 'https://www.google.com';
+const GOOGLE_HOSTNAME = 'www.google.com';
+const GOOGLE_ORIGIN = `https://${GOOGLE_HOSTNAME}`;
 
 const MAX_RESOLVE_ATTEMPTS = 3;
 
 function isGoogleRedirectPath(href: string): boolean {
     return GOOGLE_REDIRECT_PATHNAMES.has(href.split(/[?#]/)[0]);
+}
+
+/** Google pages a redirect can lead to that are not results: consent, captcha or another redirect hop. */
+function isGoogleInterstitial(url: URL): boolean {
+    if (url.hostname === 'consent.google.com') {
+        return true;
+    }
+    return url.hostname === GOOGLE_HOSTNAME && (url.pathname.startsWith('/sorry') || GOOGLE_REDIRECT_PATHNAMES.has(url.pathname));
 }
 
 /** Validates that a URL is absolute http/https and not one of Google's own internal search links. */
@@ -129,7 +138,8 @@ const parseGoogleRedirectUrl = (url: string): URL | null => {
     } catch {
         return null;
     }
-    if (parsedUrl.origin !== GOOGLE_ORIGIN || !GOOGLE_REDIRECT_PATHNAMES.has(parsedUrl.pathname)) {
+    const isHttp = parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+    if (!isHttp || parsedUrl.hostname !== GOOGLE_HOSTNAME || !GOOGLE_REDIRECT_PATHNAMES.has(parsedUrl.pathname)) {
         return null;
     }
     return parsedUrl;
@@ -140,17 +150,23 @@ const resolveGoogleRedirectUrl = async (parsedUrl: URL, proxyConfig: ProxyConfig
         url: parsedUrl.toString(),
         followRedirect: false,
         proxyUrl: await proxyConfig?.newUrl(),
-        timeout: { request: 10_000 },
+        timeout: { request: 5_000 },
     });
+    const statusCode = response?.statusCode;
     const location: unknown = response?.headers?.location;
-    if (typeof location !== 'string') {
-        throw new Error(`location header not present in the redirect response (status ${response?.statusCode})`);
+    if (statusCode < 300 || statusCode >= 400 || typeof location !== 'string') {
+        throw new Error(`response is not a redirect (status ${statusCode})`);
     }
-    return location;
+    // Google's own pages (captcha, consent) also come as redirects; failing here keeps them from winning the race
+    const destination = new URL(location, parsedUrl);
+    if (!isValidUrl(destination.href) || isGoogleInterstitial(destination)) {
+        throw new Error(`redirect does not lead to a result page: ${destination.href}`);
+    }
+    return destination.href;
 };
 
 /**
- * Replaces Google's redirect urls (/goto and /url) with their destination, by making direct requests to Google and following the location header.
+ * Replaces Google's redirect urls (/goto and /url) with their destination, read from the location header of Google's redirect response.
  */
 export const resolveGoogleRedirectUrls = async (results: OrganicResult[]): Promise<OrganicResult[]> => {
     const proxyConfig = await Actor.createProxyConfiguration({ checkAccess: false });

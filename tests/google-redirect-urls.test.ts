@@ -59,6 +59,33 @@ describe('resolving Google redirect urls', () => {
         expect(gotScrapingMock).toHaveBeenCalledTimes(3);
     });
 
+    it('resolves http redirect urls too', async () => {
+        gotScrapingMock.mockResolvedValue({ statusCode: 302, headers: { location: 'https://example.com/dest' } });
+
+        expect(await resolveUrls(['http://www.google.com/goto?url=abc'])).toEqual(['https://example.com/dest']);
+    });
+
+    it('drops the result when the location comes without a redirect status', async () => {
+        gotScrapingMock.mockResolvedValue({ statusCode: 200, headers: { location: 'https://example.com/dest' } });
+
+        expect(await resolveUrls(['https://www.google.com/goto?url=abc'])).toEqual([]);
+    });
+
+    it('drops the result when every redirect leads to a captcha or consent page', async () => {
+        gotScrapingMock
+            .mockResolvedValueOnce({ statusCode: 302, headers: { location: '/sorry/index?continue=abc' } })
+            .mockResolvedValueOnce({ statusCode: 302, headers: { location: 'https://consent.google.com/ml?continue=abc' } })
+            .mockResolvedValueOnce({ statusCode: 302, headers: { location: 'https://www.google.com/sorry/index' } });
+
+        expect(await resolveUrls(['https://www.google.com/goto?url=abc'])).toEqual([]);
+    });
+
+    it('keeps redirects to Google pages that are results', async () => {
+        gotScrapingMock.mockResolvedValue({ statusCode: 302, headers: { location: 'https://cloud.google.com/pricing' } });
+
+        expect(await resolveUrls(['https://www.google.com/goto?url=abc'])).toEqual(['https://cloud.google.com/pricing']);
+    });
+
     it('leaves no /goto urls in the results of a SERP', async () => {
         gotScrapingMock.mockImplementation(async ({ url }: { url: string }) => (url.endsWith('resolvable')
             ? { statusCode: 302, headers: { location: 'https://en.wikipedia.org/wiki/TypeScript' } }
