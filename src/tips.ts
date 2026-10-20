@@ -3,6 +3,7 @@ import { log } from 'crawlee';
 import { getDomainWithoutSuffix } from 'tldts';
 
 import { TIP_KVS_KEY } from './const.js';
+import { sortResultsByRank } from './responses.js';
 import type { Output } from './types.js';
 
 export type ActorTip = {
@@ -164,12 +165,12 @@ export function findActorTip(input: { query?: string; url?: string }): ActorTip 
 
 export async function findActorTipInResults(): Promise<ActorTip | null> {
     try {
-        const dataset = await Actor.openDataset<Pick<Output, 'metadata'>>();
-        const { items } = await dataset.getData({ fields: ['metadata'] });
-        for (const { metadata } of items) {
-            const rule = findRuleForUrl(new URL(metadata.url));
-            if (rule) return createTip(rule);
-        }
+        const dataset = await Actor.openDataset<Pick<Output, 'metadata' | 'searchResult'>>();
+        const { items } = await dataset.getData({ fields: ['metadata', 'searchResult'] });
+        const rules = sortResultsByRank(items).map(({ metadata }) => findRuleForUrl(new URL(metadata.url)));
+        const countOf = (rule: SiteRule) => rules.filter((r) => r === rule).length;
+        const rule = rules.find((r) => r && countOf(r) > rules.length / 2) ?? rules.find((r) => r);
+        if (rule) return createTip(rule);
     } catch (err) {
         log.warning(`Failed to look for a tip among the results: ${err instanceof Error ? err.message : String(err)}`);
     }

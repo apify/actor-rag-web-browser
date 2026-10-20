@@ -134,8 +134,8 @@ describe('findActorTip', () => {
 });
 
 describe('findActorTipInResults', () => {
-    function mockResults(...urls: string[]) {
-        const items = urls.map((url) => ({ metadata: { url } }));
+    function mockResults(...results: { url: string; rank: number }[]) {
+        const items = results.map(({ url, rank }) => ({ metadata: { url }, searchResult: { rank } }));
         vi.spyOn(Actor, 'openDataset').mockResolvedValue({ getData: async () => ({ items }) } as unknown as Dataset);
     }
 
@@ -143,22 +143,37 @@ describe('findActorTipInResults', () => {
         vi.restoreAllMocks();
     });
 
-    it('recommends an Actor even when just one of the results comes from a listed site', async () => {
-        mockResults('https://example.com/', 'https://example.org/', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    it('recommends the site that more than half of the results come from, even when another site ranks first', async () => {
+        mockResults(
+            { url: 'https://www.facebook.com/apify', rank: 1 },
+            { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', rank: 2 },
+            { url: 'https://www.youtube.com/watch?v=yPYZpwSpKmA', rank: 3 },
+        );
 
         expect((await findActorTipInResults())?.message).toContain('YouTube Scraper');
     });
 
-    it('recommends the Actor for the first matching result when the results come from several listed sites', async () => {
-        mockResults('https://www.instagram.com/apify/', 'https://www.facebook.com/apify');
+    it('recommends the site of the highest-ranked listed result when no site has more than half', async () => {
+        // In the order the pages finished loading, which is how they are stored.
+        mockResults(
+            { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', rank: 3 },
+            { url: 'https://example.org/', rank: 4 },
+            { url: 'https://www.facebook.com/apify', rank: 2 },
+            { url: 'https://example.com/', rank: 1 },
+        );
 
-        expect((await findActorTipInResults())?.message).toContain('Instagram Scraper');
+        expect((await findActorTipInResults())?.message).toContain('Facebook Posts Scraper');
     });
 
-    it('does not recommend anything when no result comes from a listed site', async () => {
-        mockResults('https://example.com/', 'https://example.org/');
+    it('does not count exactly half as more than half, so the highest-ranked result decides', async () => {
+        mockResults(
+            { url: 'https://www.facebook.com/apify', rank: 1 },
+            { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', rank: 2 },
+            { url: 'https://www.youtube.com/watch?v=yPYZpwSpKmA', rank: 3 },
+            { url: 'https://example.com/', rank: 4 },
+        );
 
-        expect(await findActorTipInResults()).toBeNull();
+        expect((await findActorTipInResults())?.message).toContain('Facebook Posts Scraper');
     });
 
     it('never throws when the results cannot be read', async () => {

@@ -109,8 +109,8 @@ function checkAllResultsHandled(responseId: string): boolean {
 /**
  * Sort results by rank.
  */
-function sortResultsByRank(res: ResponseData): Output[] {
-    const resultsArray = Array.from(res.resultsMap.values());
+export function sortResultsByRank<T extends Pick<Output, 'searchResult'>>(results: Iterable<T>): T[] {
+    const resultsArray = Array.from(results);
     resultsArray.sort((a, b) => {
         const ra = a.searchResult.rank ?? Infinity;
         const rb = b.searchResult.rank ?? Infinity;
@@ -144,7 +144,7 @@ export function sendResponseError(responseId: string, message: string) {
     }
     if (returnStatus === 200) {
         log.warning(`Response for request ${responseId} has been sent with partial results`);
-        res.resolve(sortResultsByRank(res));
+        res.resolve(sortResultsByRank(res.resultsMap.values()));
     } else {
         log.error(`Response for request ${responseId} has been sent with error: ${message}`);
         res.reject(new Error(message));
@@ -160,7 +160,7 @@ export function sendResponseIfFinished(responseId: string) {
     if (!res) return;
 
     if (checkAllResultsHandled(responseId)) {
-        sendResponseOk(responseId, sortResultsByRank(res));
+        sendResponseOk(responseId, sortResultsByRank(res.resultsMap.values()));
     }
 }
 /**
