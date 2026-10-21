@@ -9,15 +9,15 @@ import { handleSearchNormalMode } from './search.js';
 import { createServer } from './server.js';
 import { findActorTip, findActorTipInResults, storeActorTip } from './tips.js';
 import type { Input } from './types.js';
-import { isActorStandby } from './utils.js';
+import { isActorStandby, isMultiTenantStandby } from './utils.js';
 
 await Actor.init();
 
 const originalInput = await Actor.getInput<Partial<Input>>() ?? {} as Input;
 
 // Process-wide, so it follows the run's input: a caller's `debugMode` must not reach other callers.
-// A Standby run is ours, so we keep its debug logs.
-log.setLevel(originalInput.debugMode || isActorStandby() ? log.LEVELS.DEBUG : log.LEVELS.INFO);
+// A multi-tenant Standby run is ours, so we keep its debug logs.
+log.setLevel(originalInput.debugMode || isMultiTenantStandby() ? log.LEVELS.DEBUG : log.LEVELS.INFO);
 
 if (isActorStandby()) {
     log.info('Actor is running in the STANDBY mode.');

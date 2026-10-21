@@ -13,7 +13,7 @@ The two Actors differ in whether they run a search and what they charge for. All
 ## Charging
 - Every event is pay-per-event. Only a page that fails to load is free.
 - Charge before storing a result or sending a response.
-- The run's `maxTotalChargeUsd` budget only applies to normal runs, which the user owns. Standby runs are multi-tenant and bill each caller directly.
+- The run's `maxTotalChargeUsd` budget only applies when the user owns the run: a normal run or single-tenant Standby. A multi-tenant Standby run is ours and bills each caller directly.
 
 ## Tests
 - Crawler tests use the local server in `tests/helpers/server.ts`, never real websites.

@@ -7,6 +7,7 @@ import { ContentCrawlerTypes } from '../src/const.js';
 const mocks = vi.hoisted(() => ({
     charge: vi.fn(),
     getEnv: vi.fn(),
+    getPricingInfo: vi.fn(),
     calculateMaxEventChargeCountWithinLimit: vi.fn(),
 }));
 
@@ -15,6 +16,7 @@ vi.mock('apify', () => ({
         charge: mocks.charge,
         getEnv: mocks.getEnv,
         getChargingManager: () => ({
+            getPricingInfo: mocks.getPricingInfo,
             calculateMaxEventChargeCountWithinLimit: mocks.calculateMaxEventChargeCountWithinLimit,
         }),
     },
@@ -36,6 +38,7 @@ describe('Pay-per-event charging', () => {
         vi.clearAllMocks();
         process.env.ACTOR_FULL_NAME = 'apify/rag-web-browser';
         mocks.getEnv.mockReturnValue(NORMAL_ENV);
+        mocks.getPricingInfo.mockReturnValue({ isPayPerEvent: true });
         // No budget limit, as for a run without `maxTotalChargeUsd`, unless a test is about the budget.
         mocks.calculateMaxEventChargeCountWithinLimit.mockReturnValue(Infinity);
         fetchMock = vi.fn().mockResolvedValue({ ok: true, text: async () => '' });
@@ -74,10 +77,32 @@ describe('Pay-per-event charging', () => {
         });
     });
 
-    // A Standby run is ours and shared between callers, so each caller is billed directly.
-    describe('in standby mode', () => {
+    // Single-tenant Standby gives every caller a run of their own, with the Actor's pricing on it.
+    describe('in single-tenant standby mode', () => {
         beforeEach(() => {
             mocks.getEnv.mockReturnValue(STANDBY_ENV);
+        });
+
+        it('charges the caller, who owns the run, through the SDK even when the request has an ID', async () => {
+            await chargeFetch(ContentCrawlerTypes.CHEERIO, { ...CONTEXT, actorRequestId: 'request123' });
+
+            expect(mocks.charge).toHaveBeenCalledExactlyOnceWith({ eventName: 'fetch' });
+            expect(fetchMock).not.toHaveBeenCalled();
+        });
+
+        it('holds the run to its budget', async () => {
+            mocks.calculateMaxEventChargeCountWithinLimit.mockReturnValue(0);
+
+            expect(canAfford('fetch')).toBe(false);
+        });
+    });
+
+    // A multi-tenant Standby run is ours and shared between callers. The platform starts it without the
+    // Actor's pricing and bills each caller directly.
+    describe('in multi-tenant standby mode', () => {
+        beforeEach(() => {
+            mocks.getEnv.mockReturnValue(STANDBY_ENV);
+            mocks.getPricingInfo.mockReturnValue({ isPayPerEvent: false });
         });
 
         it.each([
@@ -100,7 +125,7 @@ describe('Pay-per-event charging', () => {
             expect(JSON.parse(options.body)).toEqual({ eventName, count: 1, requestId: 'request123' });
         });
 
-        // The budget is set by the owner of a run, and Standby runs are ours.
+        // The budget is set by the owner of a run, and multi-tenant runs are ours.
         it('does not hold the run to a budget', async () => {
             mocks.calculateMaxEventChargeCountWithinLimit.mockReturnValue(0);
 
@@ -146,6 +171,7 @@ describe('Pay-per-event charging', () => {
         it('serves the request and reports why it could not be charged for', async () => {
             process.env.ACTOR_FULL_NAME = 'apify/url-to-markdown';
             mocks.getEnv.mockReturnValue(STANDBY_ENV);
+            mocks.getPricingInfo.mockReturnValue({ isPayPerEvent: false });
             fetchMock.mockResolvedValue({ ok: false, text: async () => 'requestId is invalid or has expired' });
             const errorSpy = vi.spyOn(log, 'error').mockImplementation(() => undefined);
 

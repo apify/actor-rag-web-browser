@@ -49,6 +49,14 @@ export function isActorStandby(): boolean {
 }
 
 /**
+ * The run's environment does not say whether Standby is multi-tenant, but those are the only runs of a
+ * pay-per-event Actor that the platform starts without its pricing, because it prices each caller's events itself.
+ */
+export function isMultiTenantStandby(): boolean {
+    return isActorStandby() && !Actor.getChargingManager().getPricingInfo().isPayPerEvent;
+}
+
+/**
  * Aborts the run with a terminal status message, instead of crashing or failing it.
  */
 export async function abortRun(statusMessage: string): Promise<never> {
