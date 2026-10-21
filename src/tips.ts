@@ -163,13 +163,29 @@ export function findActorTip(input: { query?: string; url?: string }): ActorTip 
     return null;
 }
 
+/** A result whose URL is missing or malformed matches no rule, rather than costing the whole run its tip. */
+function findRuleForResultUrl(url: string | undefined): SiteRule | undefined {
+    if (!url) return undefined;
+
+    try {
+        return findRuleForUrl(new URL(url));
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Recommends a site from the results only when it clearly dominates them (#158, variant A): the site of the
+ * top-ranked result, otherwise a site that at least half of the results come from. A listed site that shows up
+ * lower in the results next to unrelated pages is not reason enough for a recommendation.
+ */
 export async function findActorTipInResults(): Promise<ActorTip | null> {
     try {
         const dataset = await Actor.openDataset<Pick<Output, 'metadata' | 'searchResult'>>();
         const { items } = await dataset.getData({ fields: ['metadata', 'searchResult'] });
-        const rules = sortResultsByRank(items).map(({ metadata }) => findRuleForUrl(new URL(metadata.url)));
+        const rules = sortResultsByRank(items).map(({ metadata }) => findRuleForResultUrl(metadata?.url));
         const countOf = (rule: SiteRule) => rules.filter((r) => r === rule).length;
-        const rule = rules.find((r) => r && countOf(r) >= rules.length / 2) ?? rules.find((r) => r);
+        const rule = rules[0] ?? rules.find((r) => r && countOf(r) >= rules.length / 2);
         if (rule) return createTip(rule);
     } catch (err) {
         log.warning(`Failed to look for a tip among the results: ${err instanceof Error ? err.message : String(err)}`);
