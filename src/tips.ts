@@ -163,7 +163,6 @@ export function findActorTip(input: { query?: string; url?: string }): ActorTip 
     return null;
 }
 
-/** A listed site that shows up lower in the results next to unrelated pages is not reason enough for a recommendation (#158). */
 export async function findActorTipInResults(): Promise<ActorTip | null> {
     try {
         const dataset = await Actor.openDataset<Pick<Output, 'metadata' | 'searchResult'>>();
