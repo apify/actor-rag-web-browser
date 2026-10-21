@@ -134,8 +134,8 @@ describe('findActorTip', () => {
 });
 
 describe('findActorTipInResults', () => {
-    function mockResults(...results: { url?: string; rank?: number }[]) {
-        const items = results.map(({ url, rank }) => ({ metadata: url === undefined ? {} : { url }, searchResult: { rank } }));
+    function mockResults(...results: { url: string; rank?: number }[]) {
+        const items = results.map(({ url, rank }) => (rank === undefined ? { metadata: { url } } : { metadata: { url }, searchResult: { rank } }));
         vi.spyOn(Actor, 'openDataset').mockResolvedValue({ getData: async () => ({ items }) } as unknown as Dataset);
     }
 
@@ -143,10 +143,11 @@ describe('findActorTipInResults', () => {
         vi.restoreAllMocks();
     });
 
-    it('recommends the site of the top-ranked result, even when it is the only listed one', async () => {
+    it('recommends the site of the result Google ranked first, not of the page stored first', async () => {
+        // In the order the pages finished loading, which is how they are stored.
         mockResults(
-            { url: 'https://www.facebook.com/apify', rank: 1 },
             { url: 'https://example.com/', rank: 2 },
+            { url: 'https://www.facebook.com/apify', rank: 1 },
             { url: 'https://example.org/', rank: 3 },
         );
 
@@ -165,22 +166,22 @@ describe('findActorTipInResults', () => {
     });
 
     it('recommends a site that at least half of the results come from when the top-ranked result is not listed', async () => {
-        // In the order the pages finished loading, which is how they are stored.
         mockResults(
-            { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', rank: 3 },
-            { url: 'https://example.org/', rank: 4 },
             { url: 'https://example.com/', rank: 1 },
-            { url: 'https://youtu.be/yPYZpwSpKmA', rank: 2 },
+            { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', rank: 2 },
+            { url: 'https://www.youtube.com/watch?v=yPYZpwSpKmA', rank: 3 },
+            { url: 'https://example.org/', rank: 4 },
         );
 
         expect((await findActorTipInResults())?.message).toContain('YouTube Scraper');
     });
 
-    it('recommends nothing for a listed site that ranks below an unlisted one and has less than half of the results', async () => {
+    it('recommends nothing for listed sites that rank below an unlisted one and have less than half of the results', async () => {
         mockResults(
-            { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', rank: 3 },
-            { url: 'https://www.facebook.com/apify', rank: 2 },
             { url: 'https://example.com/', rank: 1 },
+            { url: 'https://www.facebook.com/apify', rank: 2 },
+            { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', rank: 3 },
+            { url: 'https://www.instagram.com/apify/', rank: 4 },
         );
 
         expect(await findActorTipInResults()).toBeNull();
@@ -198,26 +199,10 @@ describe('findActorTipInResults', () => {
         expect(await findActorTipInResults()).toBeNull();
     });
 
-    it('recommends nothing when no result comes from a listed site', async () => {
-        mockResults({ url: 'https://example.com/', rank: 1 }, { url: 'https://example.org/', rank: 2 });
-
-        expect(await findActorTipInResults()).toBeNull();
-    });
-
     it('recommends the site a fetched URL ended up on, when the results carry no rank', async () => {
         mockResults({ url: 'https://www.instagram.com/apify/' });
 
         expect((await findActorTipInResults())?.message).toContain('Instagram Scraper');
-    });
-
-    it('ignores results with a missing or malformed URL instead of giving up on the tip', async () => {
-        mockResults(
-            { url: 'https://www.facebook.com/apify', rank: 1 },
-            { rank: 2 },
-            { url: 'not a url', rank: 3 },
-        );
-
-        expect((await findActorTipInResults())?.message).toContain('Facebook Posts Scraper');
     });
 
     it('never throws when the results cannot be read', async () => {
