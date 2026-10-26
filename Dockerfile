@@ -35,7 +35,7 @@ RUN pnpm run build
 RUN pnpm run build:playwright-blockers
 
 # Create final image
-FROM apify/actor-node-playwright-firefox:22-1.55.1
+FROM apify/actor-node-playwright-firefox:22-1.64.1
 
 # Enable pnpm through Corepack (see the builder stage for why we use a custom install directory).
 ENV PATH=/home/myuser/bin:$PATH

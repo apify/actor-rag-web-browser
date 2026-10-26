@@ -1,0 +1,12 @@
+diff --git a/lib/coreBundle.js b/lib/coreBundle.js
+index 6893f1cf133efec2c5dccc35c77cc7a53870ccbc..f9c0f8da1360944eec91d59eb4e74d27d49d2a2c 100644
+--- a/lib/coreBundle.js
++++ b/lib/coreBundle.js
+@@ -46215,7 +46215,6 @@ var init_ffNetworkManager = __esm({
+       async setRequestInterception(enabled, bypassServiceWorker) {
+         await Promise.all([
+           this._session.send("Network.setRequestInterception", { enabled, bypassServiceWorker }),
+-          this._session.send("Page.setCacheDisabled", { cacheDisabled: enabled })
+         ]);
+       }
+       _onRequestWillBeSent(event) {
