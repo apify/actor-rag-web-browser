@@ -1,8 +1,11 @@
+import { isIP } from 'node:net';
+
+import { ImpitHttpClient } from '@crawlee/impit-client';
 import { Actor } from 'apify';
-import { type CheerioAPI, gotScraping, log, type ProxyConfiguration } from 'crawlee';
+import { type CheerioAPI, log, type ProxyConfiguration } from 'crawlee';
 import type { Element } from 'domhandler';
 
-import type { OrganicResult, SearchResultType } from '../types.js';
+import type { OrganicResult, ProxyOptions, SearchResultType } from '../types.js';
 
 // Google's click-tracking redirect endpoints, sometimes served instead of a plain result anchor.
 // Relative to the page origin; resolved to the real destination by resolveGoogleRedirectUrls.
@@ -13,6 +16,9 @@ const GOOGLE_HOSTNAME = 'www.google.com';
 const GOOGLE_ORIGIN = `https://${GOOGLE_HOSTNAME}`;
 
 const MAX_RESOLVE_ATTEMPTS = 3;
+// Use the same browser transport as content fetching. Google's /goto endpoint can
+// return a non-redirect response to gotScraping even when the result link is valid.
+const redirectHttpClient = new ImpitHttpClient({ browser: 'firefox144', vanillaFallback: true, followRedirects: false });
 
 function isGoogleRedirectPath(href: string): boolean {
     return GOOGLE_REDIRECT_PATHNAMES.has(href.split(/[?#]/)[0]);
@@ -34,6 +40,11 @@ function isValidUrl(url: string): boolean {
 
     try {
         const urlObj = new URL(url);
+        // URL normalizes numeric anchors such as https://6 to 0.0.0.6.
+        // These unspecified-network addresses cannot be public search results.
+        if (isIP(urlObj.hostname) === 4 && urlObj.hostname.startsWith('0.')) {
+            return false;
+        }
         if ((urlObj.hostname === 'google.com' || urlObj.hostname.endsWith('.google.com')) && urlObj.pathname.startsWith('/search')) {
             return false;
         }
@@ -64,9 +75,10 @@ const parseResult = ($: CheerioAPI, el: Element) => {
     $(el).find('div.action-menu').remove();
 
     const descriptionSelector = '.VwiC3b';
-    const href = $(el).find('a').first().attr('href') || '';
+    const heading = $(el).find('h3').first();
+    const href = heading.closest('a').attr('href') || $(el).find('a').first().attr('href') || '';
     const searchResult: OrganicResult = {
-        title: $(el).find('h3').first().text() || '',
+        title: heading.text() || '',
         description: ($(el).find(descriptionSelector).text() || '').trim(),
         url: href && isGoogleRedirectPath(href) ? new URL(href, GOOGLE_ORIGIN).href : href,
     };
@@ -158,8 +170,9 @@ const readUrlDestination = (parsedUrl: URL): string | null => {
 };
 
 const resolveGoogleRedirectUrl = async (parsedUrl: URL, proxyConfig: ProxyConfiguration | undefined): Promise<string> => {
-    const response = await gotScraping({
+    const response = await redirectHttpClient.sendRequest({
         url: parsedUrl.toString(),
+        responseType: 'text',
         followRedirect: false,
         proxyUrl: await proxyConfig?.newUrl(),
         timeout: { request: 5_000 },
@@ -181,8 +194,8 @@ const resolveGoogleRedirectUrl = async (parsedUrl: URL, proxyConfig: ProxyConfig
  * Replaces Google's redirect urls (/goto and /url) with their destination.
  * /url links are read locally; /goto links (and /url without a usable destination) from Google's redirect response.
  */
-export const resolveGoogleRedirectUrls = async (results: OrganicResult[]): Promise<OrganicResult[]> => {
-    const proxyConfig = await Actor.createProxyConfiguration({ checkAccess: false });
+export const resolveGoogleRedirectUrls = async (results: OrganicResult[], proxyOptions?: ProxyOptions): Promise<OrganicResult[]> => {
+    const proxyConfig = await Actor.createProxyConfiguration({ ...proxyOptions, checkAccess: false });
 
     const resolvedResults = await Promise.all(
         results.map(async (result) => {
@@ -206,5 +219,9 @@ export const resolveGoogleRedirectUrls = async (results: OrganicResult[]): Promi
             }
         }),
     );
-    return resolvedResults.filter((result) => result !== null);
+    const usableResults = resolvedResults.filter((result) => result !== null);
+    if (results.length > 0 && usableResults.length === 0) {
+        throw new Error('No Google result URLs could be resolved');
+    }
+    return usableResults;
 };
