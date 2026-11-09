@@ -111,6 +111,29 @@ const SITE_RULES: SiteRule[] = [
         actorId: 'BG3WDrGdteHgZgbPK',
         domains: ['amazon.*'],
     },
+    {
+        site: 'x.com',
+        actorTitle: 'Tweet Scraper V2',
+        actorUrl: 'https://apify.com/apidojo/tweet-scraper',
+        actorId: '61RPP7dywgiy0JPD0',
+        domains: ['x.com', 'twitter.com'],
+    },
+    {
+        site: 'LinkedIn company posts',
+        actorTitle: 'Company Posts Scraper for LinkedIn',
+        actorUrl: 'https://apify.com/apimaestro/linkedin-company-posts',
+        actorId: 'mrThmKLmkxJPehxCg',
+        domains: ['linkedin.com'],
+        matchesUrl: (url) => pathStartsWith(url.pathname, '/company'),
+    },
+    {
+        site: 'LinkedIn profiles',
+        actorTitle: 'Profile Details Scraper for LinkedIn',
+        actorUrl: 'https://apify.com/apimaestro/linkedin-profile-detail',
+        actorId: 'VhxlqQXRwhW8H5hNV',
+        domains: ['linkedin.com'],
+        matchesUrl: (url) => pathStartsWith(url.pathname, '/in'),
+    },
 ];
 
 /**
