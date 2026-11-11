@@ -210,6 +210,9 @@ export async function handleSearchNormalMode(
         addTimeMeasureEvent(req.userData!, 'before-cheerio-run', startedTime);
         log.info(`Running Google Search crawler with request: ${req.url}`);
         await searchCrawler!.run();
+        if (searchCrawler!.stats.state.requestsFailed > 0) {
+            throw new Error('Google search failed; see the search crawler errors above');
+        }
     }
 
     addTimeMeasureEvent(req.userData!, 'before-playwright-run', startedTime);
@@ -218,5 +221,8 @@ export async function handleSearchNormalMode(
     /* eslint-enable no-param-reassign */
 
     const { requestsFinished, requestsFailed } = contentCrawler!.stats.state;
+    if (requestsFinished === 0 && requestsFailed > 0) {
+        throw new Error('All requested content pages failed; see the content crawler errors above');
+    }
     return { requestsFinished, requestsFailed };
 }
