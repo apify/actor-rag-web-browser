@@ -89,22 +89,22 @@ the web page content directly like this:
 
 ## ⚙️ Usage
 
-The RAG Web Browser can be used in two ways: **as a standard Actor** by passing it an input object with the settings,
-or in the **Standby mode** by sending it an HTTP request.
+The RAG Web Browser can be used in two ways: **via the input interface** by passing it an input object with the settings,
+or **via the server interface** by sending it an HTTP request.
 
 See the [Performance Optimization](#-performance-optimization) section below for detailed benchmarks and configuration recommendations to achieve optimal response times.
 
-### Normal Actor run
+### Actor run (via input interface)
 
-You can run the Actor "normally" via the Apify API, schedule, integrations, or manually in Console.
+You can run the Actor via the Apify API, schedule, integrations, or manually in Console.
 On start, you pass the Actor an input JSON object with settings including the search phrase or URL,
 and it stores the results to the default dataset.
-This mode is useful for testing and evaluation, but might be too slow for production applications and RAG pipelines,
+This is useful for testing and evaluation, but might be too slow for production applications and RAG pipelines,
 because it takes some time to start the Actor's Docker container and a web browser.
 Also, one Actor run can only handle one query, which isn't efficient.
 
-#### Normal run output
-When running the Actor in normal mode, all results are saved in a dataset with the following format:
+#### Run output
+When running the Actor via the input interface, all results are saved in a dataset with the following format:
 ```json
 [
   {
@@ -115,15 +115,15 @@ When running the Actor in normal mode, all results are saved in a dataset with t
   }
 ]
 ```
-### Standby web server
+### Server interface
 
-The Actor also supports the [**Standby mode**](https://docs.apify.com/actors/running/standby),
+The Actor also supports the [**Server interface**](https://docs.apify.com/actors/running/server-actors),
 where it runs an HTTP web server that receives requests with the search phrases and responds with the extracted web content.
-This mode is preferred for production applications, because if the Actor is already running, it will
-return the results much faster. Additionally, in the Standby mode the Actor can handle multiple requests
-in parallel, and thus utilizes the computing resources more efficiently.
+This mode is preferred for production applications because, if the Actor is already running, it will return the results faster. 
 
-To use RAG Web Browser in the Standby mode, simply send an HTTP GET request to the following URL:
+Additionally, with the server interface, the Actor can handle multiple requests in parallel, and thus utilizes the computing resources more efficiently. The Actor runs as a multi-tenant Server on an Apify account, so runs are shared between multiple users to maximize efficiency.
+
+To use RAG Web Browser via the server interface, simply send an HTTP GET request to the following URL:
 
 ```
 https://rag-web-browser.apify.actor/search?token=<APIFY_API_TOKEN>&query=hello+world
@@ -150,18 +150,14 @@ Simply follow the tutorial to set up [Apify MCP server](https://blog.apify.com/h
 
 ### OpenAPI schema
 
-Here you can find the [OpenAPI 3.1.0 schema](https://apify.com/apify/rag-web-browser/endpoints)
-for the Standby web server. Note that the OpenAPI definition contains
-all available query parameters, but only `query` is required.
-You can remove all the other parameters from the definition if their default value is right for your application,
-in order to reduce the number of LLM tokens necessary and to reduce the risk of hallucinations in function calling.
+Here you can find the [OpenAPI 3.1.0 schema](https://apify.com/apify/rag-web-browser/server) for the server interface. Note that the OpenAPI definition contains all available query parameters, but only `query` is required.
+You can remove all the other parameters from the definition if their default value is right for your application, in order to reduce the number of LLM tokens necessary and to reduce the risk of hallucinations in function calling.
 
 ### OpenAI Assistants
 
 While OpenAI's ChatGPT and GPTs support web browsing natively, [Assistants](https://platform.openai.com/docs/assistants/overview) currently don't.
 With RAG Web Browser, you can easily add the web search and browsing capability to your custom AI assistant and chatbots.
-For detailed instructions,
-see the [OpenAI Assistants integration](https://docs.apify.com/platform/integrations/openai-assistants#real-time-search-data-for-openai-assistant) in Apify documentation.
+For detailed instructions, see the [OpenAI Assistants integration](https://docs.apify.com/platform/integrations/openai-assistants#real-time-search-data-for-openai-assistant) in Apify documentation.
 
 ### OpenAI GPTs
 
@@ -171,8 +167,7 @@ You can easily add the RAG Web Browser to your GPTs by creating a custom action.
 2. Complete all required details in the form.
 3. Under the **Actions** section, click **Create new action**.
 4. In the Action settings, set **Authentication** to **API key** and choose Bearer as **Auth Type**.
-5. In the **schema** field, paste the [OpenAPI 3.1.0 schema](https://raw.githubusercontent.com/apify/rag-web-browser/refs/heads/master/docs/standby-openapi-3.1.0.json)
-   of the Standby web server HTTP API.
+5. In the **schema** field, paste the [OpenAPI 3.1.0 schema](https://apify.com/apify/rag-web-browser/server).
 
 ![Apify-RAG-Web-Browser-custom-action](https://raw.githubusercontent.com/apify/rag-web-browser/refs/heads/master/docs/apify-gpt-custom-action.png)
 
@@ -181,8 +176,7 @@ Learn more about [adding custom actions to your GPTs with Apify Actors](https://
 
 ## ⏳ Performance optimization
 
-When using RAG Web Browser in production, run it via the [Standby web server](#standby-web-server) as described above,
-and see the tips in the following sections.
+When using RAG Web Browser in production, run it via the [server interface](#server-interface) as described above, and see the tips in the following sections.
 
 ### Scraping tool
 
@@ -204,10 +198,8 @@ If you request more than 10 results, the Actor will need to go through several p
 Many user-facing RAG applications impose a time limit on external functions to provide a good user experience.
 For example, OpenAI Assistants and GPTs have a limit of [45 seconds](https://platform.openai.com/docs/actions/production#timeouts) for custom actions.
 
-To ensure the web search and content extraction is completed within the required timeout,
-you can set the `requestTimeoutSecs` query parameter.
-If this timeout is exceeded, **the Actor makes the best effort to return results it has scraped up to that point**
-in order to provide your LLM application with at least some context.
+To ensure the web search and content extraction is completed within the required timeout, you can set the `requestTimeoutSecs` query parameter.
+If this timeout is exceeded, **the Actor makes the best effort to return results it has scraped up to that point** in order to provide your LLM application with at least some context.
 
 Here are specific situations that might occur when the timeout is reached:
 
@@ -270,9 +262,7 @@ to extract.
 
 ### Reducing response time
 
-For low-latency applications, it's recommended to run the RAG Web Browser in Standby mode
-with the default settings, i.e. with 8 GB of memory and maximum of 24 requests per run.
-Note that on the first request, the Actor takes a little time to respond (cold start).
+For low-latency applications, it's recommended to run the RAG Web Browser via the server interface.
 
 Additionally, you can adjust the following query parameters to reduce the response time:
 
@@ -285,23 +275,9 @@ Additionally, you can adjust the following query parameters to reduce the respon
 
 ### Cost vs. throughput
 
-When running the RAG Web Browser in Standby web server, the Actor can process a number of requests in parallel.
-This number is determined by the following [Standby mode](https://docs.apify.com/actors/running/standby) settings:
+When running the RAG Web Browser via the Server Actor interface, the Actor can process multiple requests in parallel.
 
-- **Max requests per run** and **Desired requests per run** - Determine how many requests can be sent by the system to one Actor run.
-- **Memory** - Determines how much memory and CPU resources the Actor run has available, and thus how many web pages it can open and process in parallel.
-
-Additionally, the Actor manages its internal pool of web browsers to handle the requests.
-If the Actor memory or CPU is at capacity, the pool automatically scales down, and requests
-above the capacity are delayed.
-
-By default, these Standby mode settings are optimized for quick response time:
-8 GB of memory and maximum of 24 requests per run gives approximately ~340 MB per web page.
-You can **Create task** for the Actor in Apify Console and override these settings, for example to trade
-response time for throughput. Just note that requests might take longer and so you should
-increase `requestTimeoutSecs` accordingly. The settings do not change what you pay - the Actor is priced
-per event (see [Pricing](#-pricing)), not per compute unit.
-
+Furthermore, requests will be running on an Apify account, so you won't be limited by the maxRun and max RAM of your Apify subscription
 
 ### Benchmark
 
@@ -328,12 +304,10 @@ compute units it consumes. The Apify platform usage is included in the event pri
 |---|---|---|
 | **Search** | One Google Search query, including all the result pages needed to collect `maxResults` results. | Once per query that Google answers. A search that fails is not charged. |
 | **Fetch** | Retrieving one web page and converting it, with either scraping tool. | Once per web page, including pages that turn out to hold no text to extract. |
-| **Actor start** | Starting up the Actor for a single run. | On every normal Actor run, charged by the platform itself, once per GB of the run's memory. Standby requests are not charged for it. |
+| **Actor start** | Starting up the Actor for a single run. | On every normal Actor run, charged by the platform itself, once per GB of the run's memory. Requests to server itnerface are not charged for it. |
 
-So a normal run of a search query for the default `maxResults` of 3 is charged for the Actor start, one
-search and up to three fetches, while the same query sent to the Standby web server is charged one search
-and up to three fetches. Passing a URL as the `query` skips the search event, and a web page that fails to
-load is not charged for.
+So a run (via input interface) of a search query for the default `maxResults` of 3 is charged for the Actor start, one search and up to three fetches, while the same query sent via server interface is charged one search
+and up to three fetches. Passing a URL as the `query` skips the search event, and a web page that fails to load is not charged for.
 
 Prices per event depend on your Apify plan and are listed on the
 [Actor's page in Apify Store](https://apify.com/apify/rag-web-browser).
