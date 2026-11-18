@@ -1,7 +1,9 @@
 import type { Server } from 'node:http';
 
+import { log } from 'crawlee';
 import {
     afterAll,
+    afterEach,
     beforeAll,
     describe,
     expect,
@@ -222,5 +224,52 @@ describe('Standby RAG tests', () => {
         expect(data[0].crawl.httpStatusCode).toBe(200);
         expect(data[0].markdown).toContain('hello world');
         expect(getImageRequestCount()).toBe(0);
+    });
+
+    // Each test starts its own server, so that the summary it logs counts only that test's requests.
+    describe('run summary', () => {
+        const summaryServerPort = 3001;
+        let summaryServer: Server;
+
+        afterEach(() => {
+            summaryServer.close();
+            vi.useRealTimers();
+            vi.restoreAllMocks();
+        });
+
+        it('logs the status code of a response to an unknown route', async () => {
+            // Given
+            vi.useFakeTimers({ toFake: ['setInterval'] });
+            const logInfoSpy = vi.spyOn(log, 'info');
+            summaryServer = createServer().listen(summaryServerPort);
+
+            // When
+            await (await fetch(`http://localhost:${summaryServerPort}/unknown`)).json();
+            vi.advanceTimersByTime(60_000);
+
+            // Then
+            expect(logInfoSpy).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+                alert: 'standby-run-summary',
+                actorResponses: { 404: 1 },
+            }));
+        });
+
+        it('logs the pages of an answered request', async () => {
+            // Given
+            vi.useFakeTimers({ toFake: ['setInterval'] });
+            const logInfoSpy = vi.spyOn(log, 'info');
+            summaryServer = createServer().listen(summaryServerPort);
+
+            // When
+            await (await fetch(`http://localhost:${summaryServerPort}/search?query=${baseUrl}/basic`)).json();
+            vi.advanceTimersByTime(60_000);
+
+            // Then
+            expect(logInfoSpy).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+                alert: 'standby-run-summary',
+                actorResponses: { 200: 1 },
+                pages: { scraped: 1, failed: 0 },
+            }));
+        });
     });
 });

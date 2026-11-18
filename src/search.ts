@@ -10,6 +10,7 @@ import { UserInputError } from './errors.js';
 import { processInput } from './input.js';
 import { getMiniActor } from './mini-actors.js';
 import { createResponsePromise, RunShuttingDownError } from './responses.js';
+import type { RunSummary } from './run-summary.js';
 import type {
     ContentCrawlerOptions,
     ContentScraperSettings,
@@ -152,7 +153,7 @@ async function runSearchProcess(params: Partial<Input>, actorRequestId?: string)
  * Handles the search request at the /search or /fetch endpoint (HTTP scenario).
  * Uses the unified runSearchProcess function and then sends an HTTP response.
  */
-export async function handleSearchRequest(request: IncomingMessage, response: ServerResponse) {
+export async function handleSearchRequest(request: IncomingMessage, response: ServerResponse, summary: RunSummary) {
     try {
         const params = parseParameters(request.url?.slice(getMiniActor().route.length) ?? '');
         log.info(`Received query parameters: ${JSON.stringify(params)}`);
@@ -160,6 +161,7 @@ export async function handleSearchRequest(request: IncomingMessage, response: Se
         const actorRequestId = extractActorRequestId(request.headers);
 
         const results = await runSearchProcess(params, actorRequestId);
+        summary.recordPages(results);
 
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify(results));
