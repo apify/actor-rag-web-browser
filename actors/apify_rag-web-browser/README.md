@@ -121,7 +121,7 @@ The Actor also supports the [**server interface**](https://docs.apify.com/actors
 where it runs an HTTP web server that receives requests with the search phrases and responds with the extracted web content.
 This mode is preferred for production applications because, if the Actor is already running, it returns the results faster.
 
-Additionally, with the server interface the Actor can handle multiple requests in parallel, utilizing the computing resources more efficiently. The Actor runs as a multi-tenant server on the Apify platform, so runs are shared between multiple users to maximize efficiency.
+Additionally, with the server interface the Actor can handle multiple requests in parallel, utilizing the computing resources more efficiently. The Actor runs as a multi-tenant Server Actor on the Apify platform, so runs are shared between multiple users to maximize efficiency.
 
 To use RAG Web Browser via the server interface, send an HTTP GET request to the following URL:
 
