@@ -343,7 +343,7 @@ npx playwright install --with-deps
 And then you can run it locally using [Apify CLI](https://docs.apify.com/cli) as follows:
 
 ```bash
-ACTOR_FULL_NAME=apify/rag-web-browser APIFY_META_ORIGIN=STANDBY apify run -p
+ACTOR_FULL_NAME=your-username/rag-web-browser APIFY_META_ORIGIN=STANDBY apify run -p
 ```
 
 The server starts on `http://localhost:3000` and you can send requests to it, for example:
