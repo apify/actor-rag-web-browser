@@ -161,7 +161,7 @@ export async function createAndStartSearchCrawler(
                 await Actor.setValue(`google-serp-${request.id}-${request.retryCount}`, body, { contentType: 'text/html; charset=utf-8' });
             }
             const organicResults = scrapeOrganicResults($);
-            const resolvedResults = await resolveGoogleRedirectUrls(organicResults);
+            const resolvedResults = await resolveGoogleRedirectUrls(organicResults, request.userData.contentProxyOptions);
 
             // Destructure userData for easier access (pagination fields are initialized in createSearchRequest)
             const { collectedResults, currentPage, totalPages, maxResults, actorRequestId } = request.userData;
