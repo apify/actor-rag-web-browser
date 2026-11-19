@@ -65,3 +65,38 @@ describe('per-request retry counts', () => {
         expect(request.userData?.serpMaxRetries).toBe(4);
     });
 });
+
+describe('createSearchRequest query encoding', () => {
+    const buildUrl = (query: string, startOffset?: number) => createSearchRequest({
+        query,
+        responseId: 'rid',
+        maxResults: 1,
+        contentCrawlerKey: ContentCrawlerTypes.CHEERIO,
+        contentScraperSettings,
+        serpMaxRetries: 1,
+        contentProxyOptions: {},
+        proxyOptions: {},
+    }, startOffset).url;
+
+    it.each([
+        ['a plain query', 'prague restaurants'],
+        ['an ampersand', 'AT&T earnings'],
+        ['a hash', 'C# vs C++'],
+        ['a plus sign', 'a+b'],
+        ['a percent sign', '50% off'],
+        ['an equals sign and a question mark', 'what is a=b?'],
+    ])('sends %s to Google unchanged', (_label, query) => {
+        const url = new URL(buildUrl(query));
+
+        expect(url.origin).toBe('https://www.google.com');
+        expect(url.searchParams.get('q')).toBe(query);
+        expect(url.searchParams.has('start')).toBe(false);
+    });
+
+    it('keeps the query intact next to the pagination offset', () => {
+        const url = new URL(buildUrl('AT&T earnings', 10));
+
+        expect(url.searchParams.get('q')).toBe('AT&T earnings');
+        expect(url.searchParams.get('start')).toBe('10');
+    });
+});
